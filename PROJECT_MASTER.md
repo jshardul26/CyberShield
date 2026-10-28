@@ -2,11 +2,11 @@
 
 > Single source of truth across Claude chats. Read this FIRST in every new chat. Never assume a milestone is done unless it is marked ✅ here AND the code confirms it.
 
-**Last updated:** 2026-10-29 (M9 complete)
+**Last updated:** 2026-10-29 (M10 complete)
 
-**Current milestone:** M9 done ✅ → M10 next
+**Current milestone:** M10 done ✅ → M11 next
 
-**Next step:** M10 — end-to-end test + README. (1) Add `tests/test_end_to_end.py` (plain-assert script, same style as the others, also collected by pytest) that runs the Section 13 workflow in one test: temporary DB, real `server.Server` on a free port in a thread (set `server.PORT`, `client.PORT`), run `client.send_scenario` for `normal`, `repeat`, `scan`, `spike` with `delay=0`, then use the Flask test client to check `/`, `/network`, `/alerts`, `/logs`, `/incidents`, `/about` show the real data, POST status changes (acknowledge, contain, resolve), and check they persist when the app is "restarted" (new test client) and after re-reading the DB. (2) Write `README.md` (what it is, requirements, setup on Windows and Linux/Mac, the 3-terminal run steps, the pages, running the tests, simulation-only note, project structure). (3) Verify the README steps literally in a CLEAN venv (fresh clone → `python -m venv` → `pip install -r requirements.txt` → both test commands → start server + app + client and fetch every page) and record what was actually run. Then update Sections 12 ("planned — unverified" → verified) and 9 (add `README.md`).
+**Next step:** M11 — write `DEMO_AND_VIVA.md` (the final document; Markdown, in the repo root). Contents: (1) a timed demo script of about 5-7 minutes that follows README "Demo walkthrough" with the exact commands, the clicks, and what the audience should see at each step (expected numbers: `python client.py all` → 41 events, 3 alerts, 3 open incidents, 4 nodes on a fresh database); (2) a short "what each file does" table mapped to the four mandatory requirements (sockets, database, web, cybersecurity); (3) 20-30 viva questions with short answers that are TRUE for this code (check each answer against the source before writing it): why TCP, why newline-delimited JSON, why threads, how oversized/malformed input is handled, why parameterized SQL, how the 10 s window and the thresholds work, how alert de-duplication and incident reuse work (D10), why status only moves forward (D13), why two processes share SQLite (D8), why `Run simulation` uses fixed arguments (D4), what the About reachability check does, what the known limits are (Section 16), what could be improved next; (4) a "if something goes wrong during the demo" checklist (server not running, port in use, empty dashboard, delete `cybershield.db`). Do not invent features: anything not in the code goes under "future work". After writing it, check every command and number in it against a real run.
 
 ---
 
@@ -133,6 +133,7 @@ CyberShield/
 ├── detector.py
 ├── database.py
 ├── requirements.txt
+├── README.md
 ├── PROJECT_MASTER.md
 ├── templates/
 │   ├── base.html
@@ -151,7 +152,8 @@ CyberShield/
     ├── test_server.py      # added in M3 (plain-assert script)
     ├── test_client.py      # added in M4 (plain-assert script)
     ├── test_integration.py # added in M5 (plain-assert script)
-    └── test_app.py         # added in M6 (Flask test client, plain-assert script)
+    ├── test_app.py         # added in M6 (Flask test client, plain-assert script)
+    └── test_end_to_end.py  # added in M10 (full demo workflow, plain-assert script)
 
 ```
 
@@ -184,10 +186,12 @@ CyberShield/
 | M7 | `/network`, `/alerts`, `/logs` | Tables match DB; filters work | ✅ tested (15 tests in `tests/test_app.py`, 51 across the suite incl. pytest; live run with real server + simulation checked) |
 | M8 | `/incidents` actions | Status change persists after refresh and app restart | ✅ tested (7 new tests in `tests/test_app.py`, 22 there, 58 across the suite under pytest; live run: statuses changed, app restarted, statuses still saved) |
 | M9 | `/about` + CSS polish | Server state shown; responsive layout | ✅ tested (7 new app tests, 1 new detector test; 66 across the suite under pytest; live run checked server up/down; all pages screenshotted in headless Chromium at 1280 px and 375 px, no sideways page scroll) |
-| M10 | End-to-end test + README steps | Full workflow (Section 13) passes | ❌ |
+| M10 | End-to-end test + README steps | Full workflow (Section 13) passes | ✅ tested (`tests/test_end_to_end.py`; 67 tests across the suite under pytest; README steps run literally in a clean venv on a fresh clone) |
 | M11 | Demo plan + viva Q&A | Document complete | ❌ |
 
-## 12. Setup (planned — unverified)
+## 12. Setup (✅ verified on Linux in a clean venv on 2026-10-29; Windows commands unverified)
+
+Full, user-facing version: `README.md`. Summary:
 
 ```bash
 
@@ -306,15 +310,22 @@ Open http://127.0.0.1:5000
 - CSS polish, found by looking at real screenshots: (1) action buttons in `/incidents` were clipped on desktop → `td.actions` wraps; (2) long Details/Message/Title cells wrap (`td.wrap`); (3) on phones (≤600 px) every table turns into one card per row using `data-label` attributes (D14), so Status and Actions are never hidden off-screen; (4) architecture boxes stack with ↓ arrows on phones; (5) visible keyboard focus outline; filter inputs fill the width on phones
 - Checked with `python3 -I` Playwright script (not part of the repo): all 6 pages at 1280 px and 375 px → 0 px horizontal overflow, 0 console errors
 
+**M10 — end-to-end test + README (✅ `tests/test_end_to_end.py` passes; 67 tests across the suite under pytest; README steps run literally in a clean venv on a fresh clone)**
+- `tests/test_end_to_end.py::test_full_demo_workflow`: temporary DB, a real `server.Server` on a free port in a thread, and the real client scenarios. It checks, in order: server reachable (About) and empty dashboard → traffic from the 4 scenarios gives exactly 41 events, 3 alerts (one per attack, none for normal traffic), 3 open incidents, 4 nodes → every page shows the real data (dashboard cards, network, alerts, logs filters, incidents, about) → acknowledge / contain / resolve through the web routes → "restart" (TCP server stopped: About says Not reachable; new server and new web client on the same DB file) → statuses persisted → the same attacks again: node-3's acknowledged incident is reused (no new incident) and node-2's contained incident gets a NEW incident (D10), the old one stays contained
+- Robust under pytest: it sets and restores `database.DB_PATH` / `server.PORT` inside the test (other test files set the DB path at import time). Stable over repeated runs. Sabotage check: with the port-scan threshold raised so the rule cannot fire, the test fails ("timed out waiting for: 3 alerts")
+- `README.md`: what it is, how it works, rule table, requirements, setup (Linux/macOS and Windows), 3-terminal run, client modes, demo walkthrough, pages, tests, project structure, troubleshooting
+- README verification (fresh `git clone` into an empty directory, `python3 -m venv venv`, Python 3.13.18): `pip install -r requirements.txt` → Flask 3.1.3; `python -m pytest tests/ -q` → 67 passed (after the optional `pip install pytest`); `python tests/test_end_to_end.py` passes; every `tests/test_*.py` exits 0 alone; no `cybershield.db` left by the tests; `python client.py scan` with no server → friendly message, exit 1; `python server.py` + `python app.py` → `cybershield.db` auto-created, About says Reachable; `python client.py scan --source lab-pc` and `python client.py all` send 5 and 41 events; all 6 pages return 200; POST `/network/simulate` → redirect to `?sim=ok`; an acknowledged incident was still acknowledged after stopping and restarting both programs
+- Not run: the Windows commands (`venv\Scripts\activate`) and macOS; they are standard but unverified
+
 ## 15. Planned / Unverified Features
 
-M10–M11 remain planned/unverified. No empty placeholder files are left. The visual layout was checked in headless Chromium by Claude on 2026-10-29 (desktop and phone width), but NOT in Safari/Firefox or on a real phone: please open http://127.0.0.1:5000 in your own browser and report anything odd.
+M11 (demo plan + viva Q&A document) remains planned. README Windows/macOS commands are unverified. No empty placeholder files are left. The visual layout was checked in headless Chromium by Claude on 2026-10-29 (desktop and phone width), but NOT in Safari/Firefox or on a real phone: please open http://127.0.0.1:5000 in your own browser and report anything odd.
 
 ## 16. Known Issues
 
 - Alert flooding: ✅ fixed in M5 (see Section 14).
 
-- pytest run: ✅ verified 2026-10-29 (`python -m pytest tests/` → 66 passed; Flask 3.1.3, pytest 9.1.1, Python 3.13).
+- pytest run: ✅ verified 2026-10-29 (`python -m pytest tests/` → 67 passed; Flask 3.1.3, pytest 9.1.1, Python 3.13).
 
 - No CSRF tokens on the POST forms (simulate, incident status). Accepted for a localhost-only classroom demo (extra libraries are not allowed, see Section 3); do not expose the app beyond 127.0.0.1.
 
@@ -364,3 +375,4 @@ No prior `PROJECT_MASTER.md` was supplied; this is the first version. Spec adopt
 | 2026-10-29 | M7 `/network` (+ POST `/network/simulate`), `/alerts`, `/logs` added with templates and CSS; 10 new tests (15 in `test_app.py`, 51 total under pytest); pytest verified; D12 recorded; M8 next |
 | 2026-10-29 | M8 `/incidents` + POST status route, `database.get_incident()`, `incidents.html`, button/`:target` CSS; 7 new app tests + 2 database checks (58 total under pytest); restart persistence verified live; D13 recorded; M9 next |
 | 2026-10-29 | M9 `/about` page, `server_reachable()`, `detection_rules()`, `detector.RULE_SEVERITY`, `about.html`; CSS polish from real screenshots (clipped buttons, wrapping cells, phone card tables, stacked flow boxes, focus outline); 8 new tests (66 total under pytest); D14 recorded; M10 next |
+| 2026-10-29 | M10 `tests/test_end_to_end.py` (full demo workflow incl. restart and incident reuse), `README.md`; README steps verified in a clean venv on a fresh clone; 67 tests under pytest; M11 next |
