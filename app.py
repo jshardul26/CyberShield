@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 
-from flask import Flask, redirect, render_template, request, url_for
+from flask import Flask, abort, redirect, render_template, request, url_for
 
 import database
 import detector
@@ -28,6 +28,16 @@ SIM_MESSAGES = {
     "down": ("error", "Could not reach the server. Start it first: python server.py"),
     "failed": ("error", "The simulation did not finish. Check the client and server."),
 }
+
+
+# Incident workflow: an incident may only move forward (button label shown on the page too).
+NEXT_STATUSES = {
+    "open": ("acknowledged", "contained", "resolved"),
+    "acknowledged": ("contained", "resolved"),
+    "contained": ("resolved",),
+    "resolved": (),
+}
+ACTION_LABELS = {"acknowledged": "Acknowledge", "contained": "Contain", "resolved": "Resolve"}
 
 
 @app.context_processor
@@ -72,6 +82,25 @@ def simulate():
 @app.route("/alerts")
 def alerts():
     return render_template("alerts.html", alerts=database.get_alerts(limit=100))
+
+
+@app.route("/incidents")
+def incidents():
+    return render_template("incidents.html", incidents=database.get_incidents(),
+                           next_statuses=NEXT_STATUSES, labels=ACTION_LABELS)
+
+
+@app.route("/incidents/<int:incident_id>/status", methods=["POST"])
+def change_incident_status(incident_id):
+    """Move one incident forward. Unknown id -> 404; invalid or backward status -> 400."""
+    incident = database.get_incident(incident_id)
+    if incident is None:
+        abort(404)
+    new_status = request.form.get("status", "")
+    if new_status not in NEXT_STATUSES[incident["status"]]:
+        abort(400)
+    database.update_incident_status(incident_id, new_status)
+    return redirect(url_for("incidents") + f"#incident-{incident_id}")
 
 
 @app.route("/logs")

@@ -53,6 +53,10 @@ tr:last-child td { border-bottom: none; }
 button { background: var(--accent); color: #fff; border: 0; border-radius: 6px; padding: 8px 16px;
          font: inherit; font-weight: 600; cursor: pointer; }
 button:hover { filter: brightness(1.1); }
+button.small { padding: 3px 12px; font-size: 0.82rem; }
+.actions form { display: inline-block; margin-right: 6px; }
+.muted-inline { color: var(--muted); font-size: 0.85rem; }
+tr:target td { background: rgba(59, 130, 246, 0.12); }
 .filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; margin-bottom: 16px; }
 .filters label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 0.85rem; }
 select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px;

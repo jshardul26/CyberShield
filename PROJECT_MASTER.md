@@ -2,11 +2,11 @@
 
 > Single source of truth across Claude chats. Read this FIRST in every new chat. Never assume a milestone is done unless it is marked ✅ here AND the code confirms it.
 
-**Last updated:** 2026-10-29 (M7 complete)
+**Last updated:** 2026-10-29 (M8 complete)
 
-**Current milestone:** M7 done ✅ → M8 next
+**Current milestone:** M8 done ✅ → M9 next
 
-**Next step:** M8 — add `/incidents` to `app.py` with `templates/incidents.html` (extends `base.html`; the nav link and the alert-page links appear automatically once the `incidents` endpoint exists). Table from `database.get_incidents()` (each row needs `id="incident-<id>"` because `alerts.html` links to `/incidents#incident-<id>`). Status buttons (acknowledge / contain / resolve) are POST forms to a route such as `/incidents/<int:incident_id>/status` that validates the new status against `database.INCIDENT_STATUSES`, calls `database.update_incident_status()`, returns 404 for an unknown id, 400 for an invalid status, then redirects back to `/incidents`. Show only the buttons that make sense for the current status. Add tests to `tests/test_app.py`, including "status persists after reopening the DB".
+**Next step:** M9 — `/about` page + CSS polish. Add route `about` to `app.py` and fill `templates/about.html` (extends `base.html`; the nav link appears automatically): architecture summary (client → TCP server → detector → SQLite → Flask), the simulation-only statement (localhost only, does not detect all real attacks), the 3 detection rules with their thresholds read from `detector.py` constants (not hard-coded), and a "Server reachable / not reachable" indicator. Reachability check: a short `socket.create_connection((server.HOST, server.PORT), timeout=1)` that is closed immediately (import host/port constants, never take them from the request; do not send data, so no junk event is stored). Then CSS polish: check the layout at phone width (tables already scroll inside `.table-wrap`) and report anything odd. Add tests to `tests/test_app.py` (server up using a throwaway listening socket on a free port via monkeypatched constants, server down, thresholds shown from detector constants).
 
 ---
 
@@ -182,7 +182,7 @@ CyberShield/
 | M5 | Server + detector integration | `scan` mode → alert + incident rows in DB | ✅ tested (8 tests in `tests/test_integration.py`; all 5 test files pass) |
 | M6 | Flask base + Dashboard | Cards show real counts; empty DB renders without error | ✅ tested (5 tests in `tests/test_app.py`; live run with server + client + app checked) |
 | M7 | `/network`, `/alerts`, `/logs` | Tables match DB; filters work | ✅ tested (15 tests in `tests/test_app.py`, 51 across the suite incl. pytest; live run with real server + simulation checked) |
-| M8 | `/incidents` actions | Status change persists after refresh and app restart | ❌ |
+| M8 | `/incidents` actions | Status change persists after refresh and app restart | ✅ tested (7 new tests in `tests/test_app.py`, 22 there, 58 across the suite under pytest; live run: statuses changed, app restarted, statuses still saved) |
 | M9 | `/about` + CSS polish | Server state shown; responsive layout | ❌ |
 | M10 | End-to-end test + README steps | Full workflow (Section 13) passes | ❌ |
 | M11 | Demo plan + viva Q&A | Document complete | ❌ |
@@ -290,15 +290,28 @@ Open http://127.0.0.1:5000
 - `style.css`: node badges, buttons, filter form, select, notice box
 - Tests use fresh temporary databases (`EmptyDatabase` helper for empty-state checks) and a `FakeRun` stand-in so no real client starts during tests
 
+**M8 — `/incidents` + status changes (✅ 22 tests in `tests/test_app.py`; full suite 58 tests pass under pytest; live run: real `server.py` + `app.py` + `client.py all` → 3 incidents; acknowledge/contain/resolve via POST, app restarted, statuses persisted; backward move → 400, unknown id → 404)**
+- `database.get_incident(id)` added (row or `None`); 2 new checks in `tests/test_database.py` (now 26 checks)
+- `/incidents`: table from `get_incidents()` (ID, created, source, title, severity, alert count linking to `/alerts`, status badge). Each row has `id="incident-<id>"`, which `/alerts` links to; CSS highlights the targeted row (`tr:target`)
+- `POST /incidents/<int:incident_id>/status` (form field `status`): unknown id → 404; a status that is not an allowed next step → 400 (nothing written); success → redirect to `/incidents#incident-<id>`. GET → 405
+- Allowed moves (D13), kept in `NEXT_STATUSES` in `app.py`: `open → acknowledged | contained | resolved`, `acknowledged → contained | resolved`, `contained → resolved`, `resolved → (none, shows "Closed")`. The page shows only the buttons the server would accept
+- Acknowledged incidents stay "active" (dashboard card still counts them; the server still reuses them for new alerts); contained/resolved ones leave the open count and a new match creates a new incident (existing M1/M5 behaviour, unchanged)
+- Alert pages show the incident's current status automatically (status is joined from `incidents`)
+- Jinja escaping verified for incident title/source
+
 ## 15. Planned / Unverified Features
 
-M8–M11 remain planned/unverified. Still empty placeholder files: `templates/incidents.html`, `about.html`. The CSS look has NOT been checked in a real browser by Claude (no browser in its sandbox): please open http://127.0.0.1:5000 and report layout problems.
+M9–M11 remain planned/unverified. Still empty placeholder file: `templates/about.html`. The CSS look has NOT been checked in a real browser by Claude (no browser in its sandbox): please open http://127.0.0.1:5000 and report layout problems.
 
 ## 16. Known Issues
 
 - Alert flooding: ✅ fixed in M5 (see Section 14).
 
-- pytest run: ✅ verified 2026-10-29 (`python -m pytest tests/` → 51 passed; Flask 3.1.3, pytest 9.1.1, Python 3.13).
+- pytest run: ✅ verified 2026-10-29 (`python -m pytest tests/` → 58 passed; Flask 3.1.3, pytest 9.1.1, Python 3.13).
+
+- No CSRF tokens on the POST forms (simulate, incident status). Accepted for a localhost-only classroom demo (extra libraries are not allowed, see Section 3); do not expose the app beyond 127.0.0.1.
+
+- Two operators changing the same incident at the same moment: the last valid request wins (check-then-update is not atomic). Not expected in a single-user demo.
 
 - The "Run simulation" request blocks for about 6 s while the client runs (acceptable for a local demo; Flask's dev server is threaded so other pages still load).
 
@@ -318,6 +331,10 @@ M8–M11 remain planned/unverified. Still empty placeholder files: `templates/in
 
 **D12 (added in M7):** (a) `/logs` ignores invalid filter values and shows a notice instead of returning an error; the bad value is never used in SQL or echoed. (b) On `/alerts`, "info vs suspicious" is shown by explanation: every alert is suspicious, while normal traffic is an `info` event visible only on `/logs`. (c) The simulation outcome is passed to `/network` as `?sim=ok|down|failed` (fixed keys, no flash/session needed).
 
+## 17a-4. Decision D13
+
+**D13 (added in M8):** incident status can only move forward (`open → acknowledged → contained → resolved`, skipping ahead is allowed, going back is not). It is enforced on the server (`NEXT_STATUSES` in `app.py`), not only by hiding buttons. Reason: matches the real handling flow and keeps the de-duplication rule (D10) simple, since a resolved incident is never reopened; a new match creates a new incident instead.
+
 ## 17b. Conflicts Found Between Spec and Prior Decisions
 
 No prior `PROJECT_MASTER.md` was supplied; this is the first version. Spec adopted as-is, with proposed choices in Section 10.
@@ -334,3 +351,4 @@ No prior `PROJECT_MASTER.md` was supplied; this is the first version. Spec adopt
 | 2026-10-28 | M5 detection wired into `server.py`; `database.has_recent_alert()` added; flood fix; `tests/test_integration.py` (8 tests) added; M6 next |
 | 2026-10-28 | M6 `app.py`, `base.html`, `dashboard.html`, `style.css`, `requirements.txt`, `tests/test_app.py` added; 5 tests pass; D11 recorded; M7 next |
 | 2026-10-29 | M7 `/network` (+ POST `/network/simulate`), `/alerts`, `/logs` added with templates and CSS; 10 new tests (15 in `test_app.py`, 51 total under pytest); pytest verified; D12 recorded; M8 next |
+| 2026-10-29 | M8 `/incidents` + POST status route, `database.get_incident()`, `incidents.html`, button/`:target` CSS; 7 new app tests + 2 database checks (58 total under pytest); restart persistence verified live; D13 recorded; M9 next |

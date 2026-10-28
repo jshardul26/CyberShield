@@ -178,6 +178,12 @@ def get_alerts(limit=100):
     )
 
 
+def get_incident(incident_id):
+    """One incident row, or None if the id does not exist."""
+    rows = _fetch("SELECT * FROM incidents WHERE id = ?", (incident_id,))
+    return rows[0] if rows else None
+
+
 def get_incidents():
     return _fetch(
         "SELECT i.*, (SELECT COUNT(*) FROM alerts a WHERE a.incident_id = i.id) AS alert_count "

@@ -47,6 +47,8 @@ check("still active when acknowledged", db.find_active_incident("node-2", "Port 
 check("resolve works", db.update_incident_status(inc, "resolved"))
 check("resolved is not active", db.find_active_incident("node-2", "Port scan from node-2") is None)
 check("unknown incident id returns False", db.update_incident_status(999, "resolved") is False)
+check("get_incident returns the row", db.get_incident(inc)["status"] == "resolved")
+check("get_incident unknown id is None", db.get_incident(999) is None)
 
 # validation
 for bad in (lambda: db.add_event("n", "t", 1, "m", "critical"),

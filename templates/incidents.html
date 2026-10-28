@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Incidents{% endblock %}
+{% block content %}
+<h1>Incidents</h1>
+<p class="muted">Each incident groups the alerts of one rule from one source. An incident only moves forward:
+  open, acknowledged, contained, resolved. If the same activity returns after an incident is contained or
+  resolved, a new incident is created.</p>
+
+<section class="panel">
+  {% if incidents %}
+  <div class="table-wrap"><table>
+    <tr><th>ID</th><th>Created (UTC)</th><th>Source</th><th>Title</th><th>Severity</th><th>Alerts</th>
+        <th>Status</th><th>Actions</th></tr>
+    {% for i in incidents %}
+    <tr id="incident-{{ i.id }}">
+      <td>{{ i.id }}</td><td>{{ i.created_at }}</td><td>{{ i.source }}</td><td>{{ i.title }}</td>
+      <td><span class="badge sev-{{ i.severity }}">{{ i.severity }}</span></td>
+      <td>{% if 'alerts' in pages %}<a href="{{ url_for('alerts') }}">{{ i.alert_count }}</a>{% else %}{{ i.alert_count }}{% endif %}</td>
+      <td><span class="badge status-{{ i.status }}">{{ i.status }}</span></td>
+      <td class="actions">
+        {% for next in next_statuses[i.status] %}
+        <form method="post" action="{{ url_for('change_incident_status', incident_id=i.id) }}">
+          <input type="hidden" name="status" value="{{ next }}">
+          <button type="submit" class="small">{{ labels[next] }}</button>
+        </form>
+        {% else %}
+        <span class="muted-inline">Closed</span>
+        {% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="empty">No incidents yet. Run <code>python client.py scan</code> to trigger one.</p>
+  {% endif %}
+</section>
+{% endblock %}

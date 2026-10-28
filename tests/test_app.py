@@ -183,6 +183,103 @@ def test_simulate_only_accepts_post_and_shows_result():
     assert "notice" not in get("/network")
 
 
+# ---------- M8: /incidents and status changes ----------
+
+def make_incident(title="Port-scan-like activity from node-3", source="node-3", severity="high"):
+    """Incident with one alert, as the server would create it. Returns the incident id."""
+    event_id = database.add_event(source, "port_probe", 22, "probe", "low")
+    incident_id = database.add_incident(title, source, severity)
+    database.add_alert(event_id, incident_id, "port_scan", "4 ports", severity)
+    return incident_id
+
+
+def set_status(incident_id, status):
+    return c.post(f"/incidents/{incident_id}/status", data={"status": status})
+
+
+def test_incidents_empty_and_in_nav():
+    with EmptyDatabase():
+        html = get("/incidents")
+        assert "No incidents yet" in html and 'href="/incidents"' in html
+
+
+def test_incidents_page_lists_rows_and_buttons():
+    with EmptyDatabase():
+        first = make_incident()
+        second = make_incident("Traffic spike from node-4", "node-4", "medium")
+        html = get("/incidents")
+        assert f'id="incident-{first}"' in html and f'id="incident-{second}"' in html
+        assert "Traffic spike from node-4" in html and "sev-medium" in html and "status-open" in html
+        assert f'action="/incidents/{first}/status"' in html
+        assert "Acknowledge" in html and "Contain" in html and "Resolve" in html
+        assert f'href="/incidents#incident-{first}"' in get("/alerts")      # alerts page links here
+
+
+def test_buttons_follow_the_current_status():
+    with EmptyDatabase():
+        i = make_incident()
+        assert set_status(i, "acknowledged").status_code == 302
+        html = get("/incidents")
+        assert "Acknowledge" not in html and "Contain" in html and "Resolve" in html
+        set_status(i, "contained")
+        html = get("/incidents")
+        assert "Contain<" not in html and "Resolve" in html
+        set_status(i, "resolved")
+        html = get("/incidents")
+        assert "Resolve<" not in html and "Closed" in html and "status-resolved" in html
+
+
+def test_status_change_persists_and_updates_other_pages():
+    with EmptyDatabase():
+        i = make_incident()
+        assert database.get_counts()["open_incidents"] == 1
+        r = set_status(i, "acknowledged")
+        assert r.status_code == 302 and r.headers["Location"].endswith(f"/incidents#incident-{i}")
+        assert database.get_incident(i)["status"] == "acknowledged"          # saved in SQLite
+        fresh_client = web.app.test_client()                                  # like a page refresh/restart
+        assert "status-acknowledged" in fresh_client.get("/incidents").get_data(as_text=True)
+        assert "status-acknowledged" in get("/alerts")                        # alert shows incident status
+        assert database.get_counts()["open_incidents"] == 1                   # acknowledged is still active
+        set_status(i, "resolved")
+        assert database.get_counts()["open_incidents"] == 0
+        assert 'card-value">0<' in get("/")
+
+
+def test_incident_only_moves_forward():
+    with EmptyDatabase():
+        i = make_incident()
+        set_status(i, "contained")
+        for bad in ("open", "acknowledged", "contained"):                    # backward or same
+            assert set_status(i, bad).status_code == 400, bad
+        assert database.get_incident(i)["status"] == "contained"
+        assert set_status(i, "resolved").status_code == 302
+        for bad in ("open", "acknowledged", "contained", "resolved"):        # resolved is final
+            assert set_status(i, bad).status_code == 400, bad
+        assert database.get_incident(i)["status"] == "resolved"
+        j = make_incident()
+        assert set_status(j, "resolved").status_code == 302                  # open can jump ahead
+
+
+def test_bad_status_requests_are_rejected_safely():
+    with EmptyDatabase():
+        i = make_incident()
+        assert set_status(i, "deleted").status_code == 400
+        assert set_status(i, "").status_code == 400
+        assert set_status(i, "resolved'; DROP TABLE incidents;--").status_code == 400
+        assert c.post(f"/incidents/{i}/status").status_code == 400            # field missing
+        assert set_status(999, "resolved").status_code == 404                 # unknown incident
+        assert c.post("/incidents/abc/status", data={"status": "resolved"}).status_code == 404
+        assert c.get(f"/incidents/{i}/status").status_code == 405             # POST only
+        assert database.get_incident(i)["status"] == "open"                   # nothing changed, table intact
+
+
+def test_incident_text_is_escaped():
+    with EmptyDatabase():
+        make_incident("<b>x</b>", "<script>alert(1)</script>", "low")
+        html = get("/incidents")
+        assert "<script>alert(1)</script>" not in html and "&lt;script&gt;" in html and "<b>x</b>" not in html
+
+
 if __name__ == "__main__":
     tests = [v for k, v in globals().items() if k.startswith("test_")]
     for t in tests:
