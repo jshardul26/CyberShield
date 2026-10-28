@@ -2,18 +2,32 @@
 
 Run: python app.py   then open http://127.0.0.1:5000
 """
-from flask import Flask, render_template, url_for
+import os
+import subprocess
+import sys
+
+from flask import Flask, redirect, render_template, request, url_for
 
 import database
+import detector
 
 HOST = "127.0.0.1"
 PORT = 5000
+CLIENT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "client.py")
+SIMULATION_TIMEOUT = 30    # seconds; `client.py all` takes about 6 s
 
 app = Flask(__name__)
 
 # (endpoint, label) in menu order. A link only appears once its page exists.
 NAV = [("dashboard", "Dashboard"), ("network", "Network"), ("alerts", "Alerts"),
        ("incidents", "Incidents"), ("logs", "Logs"), ("about", "About")]
+
+# Messages for the "Run simulation" result. The URL only carries a key from this fixed dict.
+SIM_MESSAGES = {
+    "ok": ("ok", "Simulation finished: normal, repeat, scan and spike traffic was sent."),
+    "down": ("error", "Could not reach the server. Start it first: python server.py"),
+    "failed": ("error", "The simulation did not finish. Check the client and server."),
+}
 
 
 @app.context_processor
@@ -29,6 +43,56 @@ def dashboard():
         counts=database.get_counts(),
         events=database.get_events(limit=10),
         alerts=database.get_alerts(limit=5),
+    )
+
+
+@app.route("/network")
+def network():
+    sim = SIM_MESSAGES.get(request.args.get("sim"))
+    return render_template(
+        "network.html",
+        nodes=database.get_nodes(),
+        events=database.get_events(limit=15),
+        sim=sim,
+    )
+
+
+@app.route("/network/simulate", methods=["POST"])
+def simulate():
+    """Run `client.py all` with FIXED arguments (decision D4): nothing from the request is used."""
+    try:
+        result = subprocess.run([sys.executable, CLIENT_PATH, "all"], capture_output=True,
+                                timeout=SIMULATION_TIMEOUT, cwd=os.path.dirname(CLIENT_PATH))
+        outcome = "ok" if result.returncode == 0 else "down" if result.returncode == 1 else "failed"
+    except (subprocess.TimeoutExpired, OSError):
+        outcome = "failed"
+    return redirect(url_for("network", sim=outcome))
+
+
+@app.route("/alerts")
+def alerts():
+    return render_template("alerts.html", alerts=database.get_alerts(limit=100))
+
+
+@app.route("/logs")
+def logs():
+    event_type = request.args.get("event_type", "")
+    severity = request.args.get("severity", "")
+    ignored = []                                   # invalid filter values are dropped, not used
+    if event_type and event_type not in detector.VALID_EVENT_TYPES:
+        event_type = ""
+        ignored.append("event type")
+    if severity and severity not in database.SEVERITIES:
+        severity = ""
+        ignored.append("severity")
+    return render_template(
+        "logs.html",
+        events=database.get_events(limit=100, event_type=event_type or None, severity=severity or None),
+        event_types=detector.VALID_EVENT_TYPES,
+        severities=database.SEVERITIES,
+        selected_type=event_type,
+        selected_severity=severity,
+        ignored=ignored,
     )
 
 

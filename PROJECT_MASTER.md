@@ -2,11 +2,11 @@
 
 > Single source of truth across Claude chats. Read this FIRST in every new chat. Never assume a milestone is done unless it is marked ✅ here AND the code confirms it.
 
-**Last updated:** 2026-10-28 (M6 complete)
+**Last updated:** 2026-10-29 (M7 complete)
 
-**Current milestone:** M6 done ✅ → M7 next
+**Current milestone:** M7 done ✅ → M8 next
 
-**Next step:** M7 — add routes `/network`, `/alerts`, `/logs` to `app.py` with templates `network.html`, `alerts.html`, `logs.html` (extend `base.html`; nav links appear automatically once an endpoint exists). `/network`: `database.get_nodes()` + recent events + "Run simulation" POST button (D4: `subprocess` with fixed args, e.g. `client.py all`, no user input). `/alerts`: `get_alerts()` with link to `/incidents`. `/logs`: `get_events(limit, event_type, severity)` with GET filters validated against `detector.VALID_EVENT_TYPES` / `database.SEVERITIES`. Add tests to `tests/test_app.py`.
+**Next step:** M8 — add `/incidents` to `app.py` with `templates/incidents.html` (extends `base.html`; the nav link and the alert-page links appear automatically once the `incidents` endpoint exists). Table from `database.get_incidents()` (each row needs `id="incident-<id>"` because `alerts.html` links to `/incidents#incident-<id>`). Status buttons (acknowledge / contain / resolve) are POST forms to a route such as `/incidents/<int:incident_id>/status` that validates the new status against `database.INCIDENT_STATUSES`, calls `database.update_incident_status()`, returns 404 for an unknown id, 400 for an invalid status, then redirects back to `/incidents`. Show only the buttons that make sense for the current status. Add tests to `tests/test_app.py`, including "status persists after reopening the DB".
 
 ---
 
@@ -181,7 +181,7 @@ CyberShield/
 | M4 | `client.py` + `tests/test_client.py` | Modes `normal`, `repeat`, `scan`, `spike` send expected events | ✅ tested (6 tests pass via plain Python; end-to-end run with real server on port 9999 also checked) |
 | M5 | Server + detector integration | `scan` mode → alert + incident rows in DB | ✅ tested (8 tests in `tests/test_integration.py`; all 5 test files pass) |
 | M6 | Flask base + Dashboard | Cards show real counts; empty DB renders without error | ✅ tested (5 tests in `tests/test_app.py`; live run with server + client + app checked) |
-| M7 | `/network`, `/alerts`, `/logs` | Tables match DB; filters work | ❌ |
+| M7 | `/network`, `/alerts`, `/logs` | Tables match DB; filters work | ✅ tested (15 tests in `tests/test_app.py`, 51 across the suite incl. pytest; live run with real server + simulation checked) |
 | M8 | `/incidents` actions | Status change persists after refresh and app restart | ❌ |
 | M9 | `/about` + CSS polish | Server state shown; responsive layout | ❌ |
 | M10 | End-to-end test + README steps | Full workflow (Section 13) passes | ❌ |
@@ -282,15 +282,25 @@ Open http://127.0.0.1:5000
 - `requirements.txt` now contains `Flask>=3.0` (tested with Flask 3.1.3)
 - Dashboard reads only real DB data; empty DB renders without error
 
+**M7 — `/network`, `/alerts`, `/logs` (✅ 15 tests pass in `tests/test_app.py`; full suite 51 tests pass under pytest; live run: real `server.py` + `app.py`, POST simulate → 3 alerts, 4 Active nodes)**
+- `/network`: nodes table from `get_nodes()` (Active/Idle badge, last seen, event count), "Run simulation" button, latest 15 events, friendly empty states
+- `POST /network/simulate`: runs `[sys.executable, client.py, "all"]` via `subprocess.run` with a fixed argument list, no shell, 30 s timeout; NOTHING from the request is used (D4). It redirects to `/network?sim=<key>`; the key is looked up in the fixed `SIM_MESSAGES` dict, so unknown values show nothing. Client exit code 0 → ok, 1 → server unreachable, anything else / timeout / OSError → failed. GET returns 405
+- `/alerts`: `get_alerts(100)` with rule, details, severity, status (= its incident's status) and an incident link (a plain `#N` until `/incidents` exists). All alerts are suspicious; normal traffic stays an `info` event on `/logs` (D12)
+- `/logs`: `get_events(100, event_type, severity)` with GET filters. Values not in `detector.VALID_EVENT_TYPES` / `database.SEVERITIES` are dropped and a notice is shown (D12); dropdowns keep the selected value; "No events match this filter" empty state
+- `style.css`: node badges, buttons, filter form, select, notice box
+- Tests use fresh temporary databases (`EmptyDatabase` helper for empty-state checks) and a `FakeRun` stand-in so no real client starts during tests
+
 ## 15. Planned / Unverified Features
 
-M7–M11 remain planned/unverified. Still empty placeholder files: `templates/network.html`, `alerts.html`, `incidents.html`, `logs.html`, `about.html`. The CSS look has NOT been checked in a real browser by Claude (no browser in its sandbox): please open http://127.0.0.1:5000 and report layout problems.
+M8–M11 remain planned/unverified. Still empty placeholder files: `templates/incidents.html`, `about.html`. The CSS look has NOT been checked in a real browser by Claude (no browser in its sandbox): please open http://127.0.0.1:5000 and report layout problems.
 
 ## 16. Known Issues
 
 - Alert flooding: ✅ fixed in M5 (see Section 14).
 
-- pytest run not verified yet (plain-python runner works).
+- pytest run: ✅ verified 2026-10-29 (`python -m pytest tests/` → 51 passed; Flask 3.1.3, pytest 9.1.1, Python 3.13).
+
+- The "Run simulation" request blocks for about 6 s while the client runs (acceptable for a local demo; Flask's dev server is threaded so other pages still load).
 
 ## 17. Decision D9
 
@@ -303,6 +313,10 @@ M7–M11 remain planned/unverified. Still empty placeholder files: `templates/ne
 ## 17a-2. Decision D11
 
 **D11 (added in M6):** the dashboard auto-refreshes every 5 s using a plain `<meta http-equiv="refresh">` tag (no JavaScript, still "normal page refresh"). Other pages do not auto-refresh (the incidents page has action buttons). Nav links are shown only for pages whose Flask endpoint exists (`NAV` list in `app.py`).
+
+## 17a-3. Decision D12
+
+**D12 (added in M7):** (a) `/logs` ignores invalid filter values and shows a notice instead of returning an error; the bad value is never used in SQL or echoed. (b) On `/alerts`, "info vs suspicious" is shown by explanation: every alert is suspicious, while normal traffic is an `info` event visible only on `/logs`. (c) The simulation outcome is passed to `/network` as `?sim=ok|down|failed` (fixed keys, no flash/session needed).
 
 ## 17b. Conflicts Found Between Spec and Prior Decisions
 
@@ -319,3 +333,4 @@ No prior `PROJECT_MASTER.md` was supplied; this is the first version. Spec adopt
 | 2026-10-28 | M4 `client.py` + `tests/test_client.py` added; 6 tests pass; end-to-end with real server checked; blank lines that broke markdown tables repaired; M5 next |
 | 2026-10-28 | M5 detection wired into `server.py`; `database.has_recent_alert()` added; flood fix; `tests/test_integration.py` (8 tests) added; M6 next |
 | 2026-10-28 | M6 `app.py`, `base.html`, `dashboard.html`, `style.css`, `requirements.txt`, `tests/test_app.py` added; 5 tests pass; D11 recorded; M7 next |
+| 2026-10-29 | M7 `/network` (+ POST `/network/simulate`), `/alerts`, `/logs` added with templates and CSS; 10 new tests (15 in `test_app.py`, 51 total under pytest); pytest verified; D12 recorded; M8 next |

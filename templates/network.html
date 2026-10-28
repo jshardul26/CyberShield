@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Network{% endblock %}
+{% block content %}
+<h1>Network</h1>
+<p class="muted">Simulated nodes seen by the server. "Active" means an event arrived in the last 60 seconds.</p>
+
+{% if sim %}<p class="notice notice-{{ sim[0] }}">{{ sim[1] }}</p>{% endif %}
+
+<section class="panel">
+  <h2>Nodes</h2>
+  {% if nodes %}
+  <div class="table-wrap"><table>
+    <tr><th>Node</th><th>Status</th><th>Last seen (UTC)</th><th>Events</th></tr>
+    {% for n in nodes %}
+    <tr>
+      <td>{{ n.source }}</td>
+      <td><span class="badge node-{{ n.status|lower }}">{{ n.status }}</span></td>
+      <td>{{ n.last_seen }}</td><td>{{ n.event_count }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="empty">No nodes yet. Press the button below or run <code>python client.py all</code>.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Run simulation</h2>
+  <p class="muted">Sends normal, repeated-connection, port-scan and traffic-spike events from four simulated nodes
+    to the local server. Takes about 6 seconds. Nothing leaves 127.0.0.1.</p>
+  <form method="post" action="{{ url_for('simulate') }}">
+    <button type="submit">Run simulation</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Recent events{% if 'logs' in pages %} <a class="more" href="{{ url_for('logs') }}">View all</a>{% endif %}</h2>
+  {% if events %}
+  <div class="table-wrap"><table>
+    <tr><th>ID</th><th>Time (UTC)</th><th>Source</th><th>Type</th><th>Port</th><th>Severity</th></tr>
+    {% for e in events %}
+    <tr>
+      <td>{{ e.id }}</td><td>{{ e.timestamp }}</td><td>{{ e.source }}</td><td>{{ e.event_type }}</td>
+      <td>{{ e.dest_port if e.dest_port is not none else '-' }}</td>
+      <td><span class="badge sev-{{ e.severity }}">{{ e.severity }}</span></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="empty">No events yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

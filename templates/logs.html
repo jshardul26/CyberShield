@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Logs{% endblock %}
+{% block content %}
+<h1>Logs</h1>
+<p class="muted">Every event received by the server (newest first, up to 100).</p>
+
+{% if ignored %}<p class="notice notice-error">Ignored an invalid filter value: {{ ignored|join(', ') }}.</p>{% endif %}
+
+<section class="panel">
+  <form method="get" action="{{ url_for('logs') }}" class="filters">
+    <label>Type
+      <select name="event_type">
+        <option value="">All</option>
+        {% for t in event_types %}<option value="{{ t }}"{% if t == selected_type %} selected{% endif %}>{{ t }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Severity
+      <select name="severity">
+        <option value="">All</option>
+        {% for s in severities %}<option value="{{ s }}"{% if s == selected_severity %} selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    <button type="submit">Filter</button>
+    <a href="{{ url_for('logs') }}">Clear</a>
+  </form>
+
+  {% if events %}
+  <div class="table-wrap"><table>
+    <tr><th>ID</th><th>Time (UTC)</th><th>Source</th><th>Type</th><th>Port</th><th>Severity</th><th>Message</th></tr>
+    {% for e in events %}
+    <tr>
+      <td>{{ e.id }}</td><td>{{ e.timestamp }}</td><td>{{ e.source }}</td><td>{{ e.event_type }}</td>
+      <td>{{ e.dest_port if e.dest_port is not none else '-' }}</td>
+      <td><span class="badge sev-{{ e.severity }}">{{ e.severity }}</span></td>
+      <td>{{ e.message }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% elif selected_type or selected_severity %}
+  <p class="empty">No events match this filter.</p>
+  {% else %}
+  <p class="empty">No events yet. Start <code>python server.py</code>, then run <code>python client.py all</code>.</p>
+  {% endif %}
+</section>
+{% endblock %}
