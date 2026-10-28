@@ -2,11 +2,11 @@
 
 > Single source of truth across Claude chats. Read this FIRST in every new chat. Never assume a milestone is done unless it is marked ✅ here AND the code confirms it.
 
-**Last updated:** 2026-10-21 (M3 complete)
+**Last updated:** 2026-10-28 (M4 complete)
 
-**Current milestone:** M3 done ✅ → M4 next
+**Current milestone:** M4 done ✅ → M5 next
 
-**Next step:** M4 — implement `client.py` modes `normal`, `repeat`, `scan`, and `spike`.
+**Next step:** M5 — wire `detector.detect()` into `server.py` `process_event()`: after storing an event, load `database.get_recent_events(source, WINDOW_SECONDS)`, run the detector, create/reuse an incident (`find_active_incident` + `incident_title`) and add alerts. Also fix alert flooding (Section 16) and add `tests/test_integration.py` (scan mode → alert + incident rows).
 
 ---
 
@@ -19,15 +19,10 @@ CyberShield is a beginner-friendly **Computer Networks** project: a local simula
 ## 2. Mandatory Requirements → Where Satisfied
 
 | Requirement | Satisfied by |
-
 |---|---|
-
 | Socket programming | `server.py` (TCP server), `client.py` (simulated nodes) |
-
 | Database management | `database.py` (SQLite: events, alerts, incidents) |
-
 | Web development | `app.py` + `templates/` + `static/css` |
-
 | Cybersecurity | `detector.py` (3 rules) + incident workflow |
 
 ## 3. Constraints
@@ -47,15 +42,10 @@ CyberShield is a beginner-friendly **Computer Networks** project: a local simula
  ┌──────────────┐  JSON\n   ┌────────────────────────┐          ┌─────────────────────┐
 
  │ node-1..N    │ ────────▶ │ accept → parse → store │          │ routes → templates  │
-
  │ normal/attack│   TCP     │        │               │          │ POST status updates │
-
  └──────────────┘           │        ▼               │          └──────────┬──────────┘
-
                             │   detector.py          │                     │
-
                             │   (3 rules)            │                     │
-
                             └───────────┬────────────┘                     │
 
                                         ▼                                  ▼
@@ -63,9 +53,7 @@ CyberShield is a beginner-friendly **Computer Networks** project: a local simula
                                  ┌────────────────────────────────────────────┐
 
                                  │          SQLite  (cybershield.db)          │
-
                                  │      via database.py (shared by both)      │
-
                                  └────────────────────────────────────────────┘
 
 ```
@@ -115,13 +103,9 @@ Values — severity: `info | low | medium | high`; incident status: `open | ackn
 ## 7. Detection Rules (proposed thresholds — configurable constants in `detector.py`)
 
 | Rule | Trigger | Severity |
-
 |---|---|---|
-
 | Repeated connections | ≥ 5 `connection_attempt` from same source in 10 s | medium |
-
 | Port-scan-like | ≥ 4 distinct `dest_port` from same source in 10 s | high |
-
 | Traffic spike | ≥ 20 events (any type) from same source in 10 s | medium |
 
 Alert de-duplication: one open incident per (source, rule); further matches attach to it.
@@ -129,19 +113,12 @@ Alert de-duplication: one open incident per (source, rule); further matches atta
 ## 8. Pages
 
 | Route | Purpose | Actions |
-
 |---|---|---|
-
 | `/` | Dashboard: 4 cards, recent events, latest alerts | links |
-
 | `/network` | Nodes + status, recent events | run simulation (fixed args) |
-
 | `/alerts` | Alert list, info vs suspicious | link to incident |
-
 | `/incidents` | Incident list | acknowledge / contain / resolve (POST) |
-
 | `/logs` | Event table | filter by type/severity (GET params) |
-
 | `/about` | Architecture + simulation-only model | shows server reachable/not |
 
 ## 9. Folder Structure
@@ -151,48 +128,28 @@ Alert de-duplication: one open incident per (source, rule); further matches atta
 CyberShield/
 
 ├── app.py
-
 ├── server.py
-
 ├── client.py
-
 ├── detector.py
-
 ├── database.py
-
 ├── requirements.txt
-
 ├── PROJECT_MASTER.md
-
 ├── templates/
-
 │   ├── base.html
-
 │   ├── dashboard.html
-
 │   ├── network.html
-
 │   ├── alerts.html
-
 │   ├── incidents.html
-
 │   ├── logs.html
-
 │   └── about.html
-
 ├── static/
-
 │   ├── css/style.css
-
 │   └── js/main.js          # created ONLY if needed (currently not planned)
-
 └── tests/
-
     ├── test_database.py    # added in M1 (plain-assert script)
-
     ├── test_detection.py
-
-    └── test_server.py      # added in M3 (plain-assert script)
+    ├── test_server.py      # added in M3 (plain-assert script)
+    └── test_client.py      # added in M4 (plain-assert script)
 
 ```
 
@@ -201,53 +158,31 @@ CyberShield/
 ## 10. Decisions (D1–D8 APPROVED by user on 2026-10-21)
 
 | # | Decision | Proposed | Why |
-
 |---|---|---|---|
-
 | D1 | Ports | TCP 9999, Flask 5000 | Simple, configurable via constants |
-
 | D2 | Node status | "Active" if event seen in last 60 s, else "Idle" (derived from events, no extra table) | Avoids extra table |
-
 | D3 | Detection window | Query last 10 s of events from DB | Stateless server, easy to explain and test |
-
 | D4 | Run simulation button | Include, using `subprocess` with fixed args | Meets "launch simulation" without shell input |
-
 | D5 | `main.js` | Skip unless needed | Spec says JS only if necessary |
-
 | D6 | Alert → incident | Auto-create incident per (source, rule) | Keeps flow simple |
-
 | D7 | Event timestamps | Server-generated UTC ISO string | Clients can't spoof time |
-
 | D8 | SQLite concurrency | `timeout=5`, short-lived connections per call | Two processes share one DB |
 
 ## 11. Roadmap & Acceptance Tests
 
 | M | Module | Acceptance test | Status |
-
 |---|---|---|---|
-
 | M0 | Roadmap + this file | User approves | ✅ approved |
-
 | M1 | `database.py` | Tables created; insert/read events, alerts, incidents via quick script; data persists after restart | ✅ tested (22 checks pass) |
-
 | M2 | `detector.py` + `tests/test_detection.py` | Tests pass for each rule: below threshold → no alert, at threshold → alert | ✅ tested (16 tests, plain python; pytest not run) |
-
 | M3 | `server.py` + `tests/test_server.py` | JSON-line validation and SQLite storage; malformed and oversized input rejected; multiple clients handled (threads) | ✅ tested (6 tests pass via plain Python) |
-
-| M4 | `client.py` | Modes `normal`, `repeat`, `scan`, `spike` send expected events | ❌ |
-
+| M4 | `client.py` + `tests/test_client.py` | Modes `normal`, `repeat`, `scan`, `spike` send expected events | ✅ tested (6 tests pass via plain Python; end-to-end run with real server on port 9999 also checked) |
 | M5 | Server + detector integration | `scan` mode → alert + incident rows in DB | ❌ |
-
 | M6 | Flask base + Dashboard | Cards show real counts; empty DB renders without error | ❌ |
-
 | M7 | `/network`, `/alerts`, `/logs` | Tables match DB; filters work | ❌ |
-
 | M8 | `/incidents` actions | Status change persists after refresh and app restart | ❌ |
-
 | M9 | `/about` + CSS polish | Server state shown; responsive layout | ❌ |
-
 | M10 | End-to-end test + README steps | Full workflow (Section 13) passes | ❌ |
-
 | M11 | Demo plan + viva Q&A | Document complete | ❌ |
 
 ## 12. Setup (planned — unverified)
@@ -322,9 +257,16 @@ Open http://127.0.0.1:5000
 - Supports multiple events per connection and concurrent clients.
 - SQL-injection-style input is stored as plain text.
 - Detection/alert integration is not wired into the server; that remains M5.
+
+**M4 — `client.py` + `tests/test_client.py` (✅ 6 tests pass via `python tests/test_client.py`; also run end-to-end against a real `server.py` on port 9999, 2026-10-28)**
+- Usage: `python client.py <normal|repeat|scan|spike|all> [--source NAME]`; sends to 127.0.0.1:9999 only, one TCP connection per scenario, one JSON line per event
+- Scenarios (default source → events): `normal` node-1 → 5 `normal_traffic` (0.5 s apart); `repeat` node-2 → 6 `connection_attempt` to port 22 (0.2 s); `scan` node-3 → 5 `port_probe` to ports 21,22,23,80,443 (0.2 s); `spike` node-4 → 25 `normal_traffic` (0.05 s); `all` runs the four in order
+- Verified with the detector: normal → no alert; repeat → `repeated_connections`; scan → `port_scan`; spike → `traffic_spike` (each exactly one rule)
+- Server not running → friendly message and exit code 1 (no traceback)
+- `send_scenario(mode, source, host, port, delay)` is importable (tests use it with `delay=0`)
 ## 15. Planned / Unverified Features
 
-M4–M11 remain planned/unverified. Detection/alert integration is reserved for M5.
+M5–M11 remain planned/unverified. Detection/alert integration is reserved for M5.
 
 ## 16. Known Issues
 
@@ -343,13 +285,9 @@ No prior `PROJECT_MASTER.md` was supplied; this is the first version. Spec adopt
 ## 18. Change Log
 
 | Date | Change |
-
 |---|---|
-
 | 2026-10-21 | Initial file created from spec; awaiting approval of M0 |
-
 | 2026-10-21 | M0 approved (D1–D8). M1 `database.py` + `tests/test_database.py` added and tested |
-
 | 2026-10-21 | M2 `detector.py` + `tests/test_detection.py` added; 16 tests pass; D9 and alert-flooding note recorded |
-
 | 2026-10-21 | M3 `server.py` + `tests/test_server.py` added; 6 tests pass; JSON-line validation and event storage verified; M4 next |
+| 2026-10-28 | M4 `client.py` + `tests/test_client.py` added; 6 tests pass; end-to-end with real server checked; blank lines that broke markdown tables repaired; M5 next |
