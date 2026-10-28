@@ -3,6 +3,7 @@
 Run: python app.py   then open http://127.0.0.1:5000
 """
 import os
+import socket
 import subprocess
 import sys
 
@@ -10,6 +11,7 @@ from flask import Flask, abort, redirect, render_template, request, url_for
 
 import database
 import detector
+import server
 
 HOST = "127.0.0.1"
 PORT = 5000
@@ -101,6 +103,43 @@ def change_incident_status(incident_id):
         abort(400)
     database.update_incident_status(incident_id, new_status)
     return redirect(url_for("incidents") + f"#incident-{incident_id}")
+
+
+def server_reachable():
+    """True if something accepts TCP connections on the server's host:port.
+
+    Connects and closes at once without sending anything, so no event is stored. The address
+    comes from server.py's constants, never from the request.
+    """
+    try:
+        with socket.create_connection((server.HOST, server.PORT), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+def detection_rules():
+    """The three rules with their CURRENT thresholds (read from detector.py, not copied)."""
+    window = detector.WINDOW_SECONDS
+    titles, severity = detector.RULE_TITLES, detector.RULE_SEVERITY
+    return [
+        {"title": titles["repeated_connections"], "severity": severity["repeated_connections"],
+         "trigger": f"{detector.REPEATED_CONNECTION_THRESHOLD} or more connection_attempt events "
+                    f"from one source within {window} s"},
+        {"title": titles["port_scan"], "severity": severity["port_scan"],
+         "trigger": f"{detector.PORT_SCAN_THRESHOLD} or more different destination ports in "
+                    f"port_probe events from one source within {window} s"},
+        {"title": titles["traffic_spike"], "severity": severity["traffic_spike"],
+         "trigger": f"{detector.TRAFFIC_SPIKE_THRESHOLD} or more events of any type "
+                    f"from one source within {window} s"},
+    ]
+
+
+@app.route("/about")
+def about():
+    return render_template("about.html", reachable=server_reachable(), server_host=server.HOST,
+                           server_port=server.PORT, rules=detection_rules(),
+                           event_types=detector.VALID_EVENT_TYPES)
 
 
 @app.route("/logs")

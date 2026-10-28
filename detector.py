@@ -24,6 +24,13 @@ RULE_TITLES = {
     "traffic_spike": "Traffic spike",
 }
 
+# Severity of the alert each rule raises (also shown on the About page)
+RULE_SEVERITY = {
+    "repeated_connections": "medium",
+    "port_scan": "high",
+    "traffic_spike": "medium",
+}
+
 
 def event_severity(event_type):
     """Severity for one stored event. Raises ValueError for unknown types."""
@@ -48,7 +55,7 @@ def detect(recent_events):
     if connection_attempts >= REPEATED_CONNECTION_THRESHOLD:
         alerts.append({
             "rule": "repeated_connections",
-            "severity": "medium",
+            "severity": RULE_SEVERITY["repeated_connections"],
             "description": f"{connection_attempts} connection attempts in {WINDOW_SECONDS} s "
                            f"(threshold {REPEATED_CONNECTION_THRESHOLD})",
         })
@@ -58,7 +65,7 @@ def detect(recent_events):
     if len(probed_ports) >= PORT_SCAN_THRESHOLD:
         alerts.append({
             "rule": "port_scan",
-            "severity": "high",
+            "severity": RULE_SEVERITY["port_scan"],
             "description": f"{len(probed_ports)} different ports probed in {WINDOW_SECONDS} s "
                            f"(threshold {PORT_SCAN_THRESHOLD})",
         })
@@ -66,7 +73,7 @@ def detect(recent_events):
     if len(recent_events) >= TRAFFIC_SPIKE_THRESHOLD:
         alerts.append({
             "rule": "traffic_spike",
-            "severity": "medium",
+            "severity": RULE_SEVERITY["traffic_spike"],
             "description": f"{len(recent_events)} events in {WINDOW_SECONDS} s "
                            f"(threshold {TRAFFIC_SPIKE_THRESHOLD})",
         })

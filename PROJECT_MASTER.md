@@ -2,11 +2,11 @@
 
 > Single source of truth across Claude chats. Read this FIRST in every new chat. Never assume a milestone is done unless it is marked ✅ here AND the code confirms it.
 
-**Last updated:** 2026-10-29 (M8 complete)
+**Last updated:** 2026-10-29 (M9 complete)
 
-**Current milestone:** M8 done ✅ → M9 next
+**Current milestone:** M9 done ✅ → M10 next
 
-**Next step:** M9 — `/about` page + CSS polish. Add route `about` to `app.py` and fill `templates/about.html` (extends `base.html`; the nav link appears automatically): architecture summary (client → TCP server → detector → SQLite → Flask), the simulation-only statement (localhost only, does not detect all real attacks), the 3 detection rules with their thresholds read from `detector.py` constants (not hard-coded), and a "Server reachable / not reachable" indicator. Reachability check: a short `socket.create_connection((server.HOST, server.PORT), timeout=1)` that is closed immediately (import host/port constants, never take them from the request; do not send data, so no junk event is stored). Then CSS polish: check the layout at phone width (tables already scroll inside `.table-wrap`) and report anything odd. Add tests to `tests/test_app.py` (server up using a throwaway listening socket on a free port via monkeypatched constants, server down, thresholds shown from detector constants).
+**Next step:** M10 — end-to-end test + README. (1) Add `tests/test_end_to_end.py` (plain-assert script, same style as the others, also collected by pytest) that runs the Section 13 workflow in one test: temporary DB, real `server.Server` on a free port in a thread (set `server.PORT`, `client.PORT`), run `client.send_scenario` for `normal`, `repeat`, `scan`, `spike` with `delay=0`, then use the Flask test client to check `/`, `/network`, `/alerts`, `/logs`, `/incidents`, `/about` show the real data, POST status changes (acknowledge, contain, resolve), and check they persist when the app is "restarted" (new test client) and after re-reading the DB. (2) Write `README.md` (what it is, requirements, setup on Windows and Linux/Mac, the 3-terminal run steps, the pages, running the tests, simulation-only note, project structure). (3) Verify the README steps literally in a CLEAN venv (fresh clone → `python -m venv` → `pip install -r requirements.txt` → both test commands → start server + app + client and fetch every page) and record what was actually run. Then update Sections 12 ("planned — unverified" → verified) and 9 (add `README.md`).
 
 ---
 
@@ -183,7 +183,7 @@ CyberShield/
 | M6 | Flask base + Dashboard | Cards show real counts; empty DB renders without error | ✅ tested (5 tests in `tests/test_app.py`; live run with server + client + app checked) |
 | M7 | `/network`, `/alerts`, `/logs` | Tables match DB; filters work | ✅ tested (15 tests in `tests/test_app.py`, 51 across the suite incl. pytest; live run with real server + simulation checked) |
 | M8 | `/incidents` actions | Status change persists after refresh and app restart | ✅ tested (7 new tests in `tests/test_app.py`, 22 there, 58 across the suite under pytest; live run: statuses changed, app restarted, statuses still saved) |
-| M9 | `/about` + CSS polish | Server state shown; responsive layout | ❌ |
+| M9 | `/about` + CSS polish | Server state shown; responsive layout | ✅ tested (7 new app tests, 1 new detector test; 66 across the suite under pytest; live run checked server up/down; all pages screenshotted in headless Chromium at 1280 px and 375 px, no sideways page scroll) |
 | M10 | End-to-end test + README steps | Full workflow (Section 13) passes | ❌ |
 | M11 | Demo plan + viva Q&A | Document complete | ❌ |
 
@@ -299,15 +299,22 @@ Open http://127.0.0.1:5000
 - Alert pages show the incident's current status automatically (status is joined from `incidents`)
 - Jinja escaping verified for incident title/source
 
+**M9 — `/about` + CSS polish (✅ 29 tests in `tests/test_app.py`; 66 across the suite under pytest; live run: server up → "Reachable", server stopped → "Not reachable"; visual check in headless Chromium)**
+- `/about` (`about.html`): monitoring-server status badge, "Simulation only" statement (includes "does not detect all real-world attacks"), architecture flow (client.py → server.py + detector.py → SQLite → app.py) with the 4 data-flow steps, and the detection rules table
+- Reachability: `server_reachable()` in `app.py` opens a TCP connection to `server.HOST:server.PORT` (timeout 1 s) and closes it at once. Sends nothing, so no event is stored (tested). The address comes only from `server.py` constants; query parameters are ignored (tested)
+- The rules table is built by `detection_rules()` from the CURRENT `detector.py` constants (tested by changing a threshold at runtime), and severities now come from the new `detector.RULE_SEVERITY` dict, which `detect()` also uses (single source of truth; 1 new test in `tests/test_detection.py`, now 17)
+- CSS polish, found by looking at real screenshots: (1) action buttons in `/incidents` were clipped on desktop → `td.actions` wraps; (2) long Details/Message/Title cells wrap (`td.wrap`); (3) on phones (≤600 px) every table turns into one card per row using `data-label` attributes (D14), so Status and Actions are never hidden off-screen; (4) architecture boxes stack with ↓ arrows on phones; (5) visible keyboard focus outline; filter inputs fill the width on phones
+- Checked with `python3 -I` Playwright script (not part of the repo): all 6 pages at 1280 px and 375 px → 0 px horizontal overflow, 0 console errors
+
 ## 15. Planned / Unverified Features
 
-M9–M11 remain planned/unverified. Still empty placeholder file: `templates/about.html`. The CSS look has NOT been checked in a real browser by Claude (no browser in its sandbox): please open http://127.0.0.1:5000 and report layout problems.
+M10–M11 remain planned/unverified. No empty placeholder files are left. The visual layout was checked in headless Chromium by Claude on 2026-10-29 (desktop and phone width), but NOT in Safari/Firefox or on a real phone: please open http://127.0.0.1:5000 in your own browser and report anything odd.
 
 ## 16. Known Issues
 
 - Alert flooding: ✅ fixed in M5 (see Section 14).
 
-- pytest run: ✅ verified 2026-10-29 (`python -m pytest tests/` → 58 passed; Flask 3.1.3, pytest 9.1.1, Python 3.13).
+- pytest run: ✅ verified 2026-10-29 (`python -m pytest tests/` → 66 passed; Flask 3.1.3, pytest 9.1.1, Python 3.13).
 
 - No CSRF tokens on the POST forms (simulate, incident status). Accepted for a localhost-only classroom demo (extra libraries are not allowed, see Section 3); do not expose the app beyond 127.0.0.1.
 
@@ -335,6 +342,10 @@ M9–M11 remain planned/unverified. Still empty placeholder file: `templates/abo
 
 **D13 (added in M8):** incident status can only move forward (`open → acknowledged → contained → resolved`, skipping ahead is allowed, going back is not). It is enforced on the server (`NEXT_STATUSES` in `app.py`), not only by hiding buttons. Reason: matches the real handling flow and keeps the de-duplication rule (D10) simple, since a resolved incident is never reopened; a new match creates a new incident instead.
 
+## 17a-5. Decision D14
+
+**D14 (added in M9):** on screens ≤600 px every data table is shown as one card per row (pure CSS: `table.stack` + `data-label` on each `<td>`, no JavaScript). Reason: horizontal scrolling hid the Status and Actions columns on phones. When adding a new table, give it `class="stack"` and a `data-label` on every cell (a test checks that every cell has one).
+
 ## 17b. Conflicts Found Between Spec and Prior Decisions
 
 No prior `PROJECT_MASTER.md` was supplied; this is the first version. Spec adopted as-is, with proposed choices in Section 10.
@@ -352,3 +363,4 @@ No prior `PROJECT_MASTER.md` was supplied; this is the first version. Spec adopt
 | 2026-10-28 | M6 `app.py`, `base.html`, `dashboard.html`, `style.css`, `requirements.txt`, `tests/test_app.py` added; 5 tests pass; D11 recorded; M7 next |
 | 2026-10-29 | M7 `/network` (+ POST `/network/simulate`), `/alerts`, `/logs` added with templates and CSS; 10 new tests (15 in `test_app.py`, 51 total under pytest); pytest verified; D12 recorded; M8 next |
 | 2026-10-29 | M8 `/incidents` + POST status route, `database.get_incident()`, `incidents.html`, button/`:target` CSS; 7 new app tests + 2 database checks (58 total under pytest); restart persistence verified live; D13 recorded; M9 next |
+| 2026-10-29 | M9 `/about` page, `server_reachable()`, `detection_rules()`, `detector.RULE_SEVERITY`, `about.html`; CSS polish from real screenshots (clipped buttons, wrapping cells, phone card tables, stacked flow boxes, focus outline); 8 new tests (66 total under pytest); D14 recorded; M10 next |

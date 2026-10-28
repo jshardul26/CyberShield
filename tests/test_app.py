@@ -1,7 +1,10 @@
 """M6 tests: python tests/test_app.py  (Flask test client, temporary DB)."""
 import os
+import socket
 import sys
 import tempfile
+import threading
+import time
 from html import escape
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -278,6 +281,121 @@ def test_incident_text_is_escaped():
         make_incident("<b>x</b>", "<script>alert(1)</script>", "low")
         html = get("/incidents")
         assert "<script>alert(1)</script>" not in html and "&lt;script&gt;" in html and "<b>x</b>" not in html
+
+
+# ---------- M9: /about ----------
+
+class ServerPort:
+    """Point the About page's reachability check at a port, then restore the real one."""
+    def __init__(self, port):
+        self.port = port
+
+    def __enter__(self):
+        self.old = web.server.PORT
+        web.server.PORT = self.port
+
+    def __exit__(self, *exc):
+        web.server.PORT = self.old
+
+
+def closed_port():
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()                                  # nothing listens here any more
+    return port
+
+
+class LiveServer:
+    """A real CyberShield TCP server on a free port, for the 'reachable' case."""
+    def __enter__(self):
+        self.srv = web.server.Server(("127.0.0.1", 0), web.server.Handler)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.port = self.srv.server_address[1]
+        self.port_ctx = ServerPort(self.port)
+        self.port_ctx.__enter__()
+        return self
+
+    def __exit__(self, *exc):
+        self.port_ctx.__exit__()
+        self.srv.shutdown()
+        self.srv.server_close()
+
+
+def test_about_in_nav_and_explains_the_project():
+    with EmptyDatabase():
+        html = get("/about")
+        assert 'href="/about"' in html
+        assert "Simulation only" in html and "127.0.0.1" in html and "not</strong> detect all real-world" in html
+        for part in ("client.py", "server.py", "detector.py", "SQLite", "Flask"):
+            assert part in html
+
+
+def test_about_server_not_reachable():
+    with ServerPort(closed_port()):
+        html = get("/about")
+    assert "server-down" in html and "Not reachable" in html and "python server.py" in html
+    assert "server-up" not in html
+
+
+def test_about_server_reachable_and_check_stores_nothing():
+    with EmptyDatabase():
+        with LiveServer() as live:
+            html = get("/about")
+            assert "server-up" in html and "server-down" not in html and f"127.0.0.1:{live.port}" in html
+            assert "python server.py" not in html
+            get("/about")
+            time.sleep(0.2)                                  # let the server thread see the closed connection
+        assert database.get_counts()["events"] == 0          # the check sent no event
+
+
+def test_about_address_cannot_be_changed_from_the_request():
+    with LiveServer():
+        html = get("/about?host=10.9.8.7&port=1&server_port=1")
+        assert "server-up" in html and "10.9.8.7" not in html
+
+
+def test_about_rules_come_from_detector_constants():
+    html = get("/about")
+    for title in web.detector.RULE_TITLES.values():
+        assert title in html
+    assert "sev-high" in html and "sev-medium" in html
+    old = web.detector.PORT_SCAN_THRESHOLD
+    web.detector.PORT_SCAN_THRESHOLD = 7
+    try:
+        assert "7 or more different destination ports" in get("/about")
+    finally:
+        web.detector.PORT_SCAN_THRESHOLD = old
+    assert f"{web.detector.REPEATED_CONNECTION_THRESHOLD} or more connection_attempt" in get("/about")
+    assert f"{web.detector.TRAFFIC_SPIKE_THRESHOLD} or more events of any type" in get("/about")
+
+
+def test_tables_are_ready_for_phone_cards():
+    with EmptyDatabase():
+        make_incident()
+        pages = {"/": 2, "/network": 2, "/alerts": 1, "/incidents": 1, "/logs": 1, "/about": 1}
+        for path, tables in pages.items():
+            html = get(path)
+            if path in ("/", "/network"):
+                database.add_event("node-1", "normal_traffic", 80, "x", "info")
+                html = get(path)
+            assert html.count('<table class="stack">') >= 1, path
+            assert 'data-label="' in html, path
+        html = get("/incidents")
+        for label in ("ID", "Created (UTC)", "Source", "Title", "Severity", "Alerts", "Status", "Actions"):
+            assert f'data-label="{label}"' in html, label
+        assert html.count("<td") == html.count("data-label=")          # every cell has a label
+    css = c.get("/static/css/style.css").get_data(as_text=True)
+    assert "table.stack td::before" in css and "attr(data-label)" in css
+
+
+def test_long_text_cells_can_wrap():
+    with EmptyDatabase():
+        make_incident()
+        database.add_event("node-1", "normal_traffic", 80, "m" * 150, "info")
+        assert 'class="wrap"' in get("/alerts") and 'class="wrap"' in get("/logs")
+        assert 'class="wrap"' in get("/incidents")
+    assert "td.wrap" in c.get("/static/css/style.css").get_data(as_text=True)
 
 
 if __name__ == "__main__":

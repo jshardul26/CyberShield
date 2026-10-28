@@ -8,16 +8,16 @@
 
 <section class="panel">
   {% if incidents %}
-  <div class="table-wrap"><table>
+  <div class="table-wrap"><table class="stack">
     <tr><th>ID</th><th>Created (UTC)</th><th>Source</th><th>Title</th><th>Severity</th><th>Alerts</th>
         <th>Status</th><th>Actions</th></tr>
     {% for i in incidents %}
     <tr id="incident-{{ i.id }}">
-      <td>{{ i.id }}</td><td>{{ i.created_at }}</td><td>{{ i.source }}</td><td>{{ i.title }}</td>
-      <td><span class="badge sev-{{ i.severity }}">{{ i.severity }}</span></td>
-      <td>{% if 'alerts' in pages %}<a href="{{ url_for('alerts') }}">{{ i.alert_count }}</a>{% else %}{{ i.alert_count }}{% endif %}</td>
-      <td><span class="badge status-{{ i.status }}">{{ i.status }}</span></td>
-      <td class="actions">
+      <td data-label="ID">{{ i.id }}</td><td data-label="Created (UTC)">{{ i.created_at }}</td><td data-label="Source">{{ i.source }}</td><td class="wrap" data-label="Title">{{ i.title }}</td>
+      <td data-label="Severity"><span class="badge sev-{{ i.severity }}">{{ i.severity }}</span></td>
+      <td data-label="Alerts">{% if 'alerts' in pages %}<a href="{{ url_for('alerts') }}">{{ i.alert_count }}</a>{% else %}{{ i.alert_count }}{% endif %}</td>
+      <td data-label="Status"><span class="badge status-{{ i.status }}">{{ i.status }}</span></td>
+      <td class="actions" data-label="Actions">
         {% for next in next_statuses[i.status] %}
         <form method="post" action="{{ url_for('change_incident_status', incident_id=i.id) }}">
           <input type="hidden" name="status" value="{{ next }}">

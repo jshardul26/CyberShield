@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}About{% endblock %}
+{% block content %}
+<h1>About CyberShield</h1>
+<p class="muted">A beginner-friendly Computer Networks project: simulated clients, a TCP monitoring server,
+  simple detection rules, a SQLite database and this web dashboard.</p>
+
+<section class="panel">
+  <h2>Monitoring server</h2>
+  <p>
+    {% if reachable %}<span class="badge node-active server-up">Reachable</span>
+    {% else %}<span class="badge sev-high server-down">Not reachable</span>{% endif %}
+    TCP server at <code>{{ server_host }}:{{ server_port }}</code>
+  </p>
+  {% if not reachable %}
+  <p class="muted">Events cannot be received right now. Start it in another terminal:
+    <code>python server.py</code></p>
+  {% endif %}
+  <p class="muted">Checked each time this page loads by opening and closing a connection. Nothing is sent, so no event is stored.</p>
+</section>
+
+<section class="panel">
+  <h2>Simulation only</h2>
+  <p>Everything here is a local simulation. All traffic stays on <code>127.0.0.1</code>. The clients send
+    made-up events: nothing is scanned, attacked or blocked on any real network. The three rules below are
+    deliberately simple, so CyberShield does <strong>not</strong> detect all real-world attacks.</p>
+</section>
+
+<section class="panel">
+  <h2>How it fits together</h2>
+  <div class="flow">
+    <div class="flow-box"><strong>client.py</strong><span>simulated nodes</span></div>
+    <div class="flow-arrow"><small>TCP, one JSON line per event</small></div>
+    <div class="flow-box"><strong>server.py + detector.py</strong><span>validate, store, apply rules</span></div>
+    <div class="flow-arrow"><small>events, alerts, incidents</small></div>
+    <div class="flow-box"><strong>SQLite</strong><span>cybershield.db</span></div>
+    <div class="flow-arrow"><small>read, and update incident status</small></div>
+    <div class="flow-box"><strong>app.py (Flask)</strong><span>these pages</span></div>
+  </div>
+  <ol class="steps">
+    <li>A client sends events of these types to the server:
+      {% for t in event_types %}<code>{{ t }}</code>{% if not loop.last %}, {% endif %}{% endfor %}.</li>
+    <li>The server checks each message, stores the event, and runs the rules on that source's recent events.</li>
+    <li>A matching rule stores an alert and opens (or reuses) an incident for that source and rule.</li>
+    <li>You inspect alerts and logs here, and move incidents forward: acknowledged, contained, resolved.</li>
+  </ol>
+</section>
+
+<section class="panel">
+  <h2>Detection rules</h2>
+  <div class="table-wrap"><table class="stack">
+    <tr><th>Rule</th><th>Triggers when</th><th>Severity</th></tr>
+    {% for r in rules %}
+    <tr>
+      <td data-label="Rule">{{ r.title }}</td>
+      <td class="wrap" data-label="Triggers when">{{ r.trigger }}</td>
+      <td data-label="Severity"><span class="badge sev-{{ r.severity }}">{{ r.severity }}</span></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  <p class="muted note">Each incident gets at most one alert per rule per window, so one attack does not flood the list.</p>
+</section>
+{% endblock %}

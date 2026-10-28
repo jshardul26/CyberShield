@@ -8,16 +8,16 @@
 
 <section class="panel">
   {% if alerts %}
-  <div class="table-wrap"><table>
+  <div class="table-wrap"><table class="stack">
     <tr><th>ID</th><th>Time (UTC)</th><th>Source</th><th>Rule</th><th>Details</th><th>Severity</th><th>Status</th>
         <th>Incident</th></tr>
     {% for a in alerts %}
     <tr>
-      <td>{{ a.id }}</td><td>{{ a.timestamp }}</td><td>{{ a.source }}</td><td>{{ a.rule }}</td>
-      <td>{{ a.description }}</td>
-      <td><span class="badge sev-{{ a.severity }}">{{ a.severity }}</span></td>
-      <td><span class="badge status-{{ a.status }}">{{ a.status }}</span></td>
-      <td>{% if 'incidents' in pages %}<a href="{{ url_for('incidents') }}#incident-{{ a.incident_id }}">#{{ a.incident_id }}</a>{% else %}#{{ a.incident_id }}{% endif %}</td>
+      <td data-label="ID">{{ a.id }}</td><td data-label="Time (UTC)">{{ a.timestamp }}</td><td data-label="Source">{{ a.source }}</td><td data-label="Rule">{{ a.rule }}</td>
+      <td class="wrap" data-label="Details">{{ a.description }}</td>
+      <td data-label="Severity"><span class="badge sev-{{ a.severity }}">{{ a.severity }}</span></td>
+      <td data-label="Status"><span class="badge status-{{ a.status }}">{{ a.status }}</span></td>
+      <td data-label="Incident">{% if 'incidents' in pages %}<a href="{{ url_for('incidents') }}#incident-{{ a.incident_id }}">#{{ a.incident_id }}</a>{% else %}#{{ a.incident_id }}{% endif %}</td>
     </tr>
     {% endfor %}
   </table></div>

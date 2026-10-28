@@ -15,13 +15,13 @@
 <section class="panel">
   <h2>Latest alerts{% if 'alerts' in pages %} <a class="more" href="{{ url_for('alerts') }}">View all</a>{% endif %}</h2>
   {% if alerts %}
-  <div class="table-wrap"><table>
+  <div class="table-wrap"><table class="stack">
     <tr><th>ID</th><th>Time (UTC)</th><th>Source</th><th>Rule</th><th>Severity</th><th>Status</th></tr>
     {% for a in alerts %}
     <tr>
-      <td>{{ a.id }}</td><td>{{ a.timestamp }}</td><td>{{ a.source }}</td><td>{{ a.rule }}</td>
-      <td><span class="badge sev-{{ a.severity }}">{{ a.severity }}</span></td>
-      <td><span class="badge status-{{ a.status }}">{{ a.status }}</span></td>
+      <td data-label="ID">{{ a.id }}</td><td data-label="Time (UTC)">{{ a.timestamp }}</td><td data-label="Source">{{ a.source }}</td><td data-label="Rule">{{ a.rule }}</td>
+      <td data-label="Severity"><span class="badge sev-{{ a.severity }}">{{ a.severity }}</span></td>
+      <td data-label="Status"><span class="badge status-{{ a.status }}">{{ a.status }}</span></td>
     </tr>
     {% endfor %}
   </table></div>
@@ -33,13 +33,13 @@
 <section class="panel">
   <h2>Recent events{% if 'logs' in pages %} <a class="more" href="{{ url_for('logs') }}">View all</a>{% endif %}</h2>
   {% if events %}
-  <div class="table-wrap"><table>
+  <div class="table-wrap"><table class="stack">
     <tr><th>ID</th><th>Time (UTC)</th><th>Source</th><th>Type</th><th>Port</th><th>Severity</th></tr>
     {% for e in events %}
     <tr>
-      <td>{{ e.id }}</td><td>{{ e.timestamp }}</td><td>{{ e.source }}</td><td>{{ e.event_type }}</td>
-      <td>{{ e.dest_port if e.dest_port is not none else '-' }}</td>
-      <td><span class="badge sev-{{ e.severity }}">{{ e.severity }}</span></td>
+      <td data-label="ID">{{ e.id }}</td><td data-label="Time (UTC)">{{ e.timestamp }}</td><td data-label="Source">{{ e.source }}</td><td data-label="Type">{{ e.event_type }}</td>
+      <td data-label="Port">{{ e.dest_port if e.dest_port is not none else '-' }}</td>
+      <td data-label="Severity"><span class="badge sev-{{ e.severity }}">{{ e.severity }}</span></td>
     </tr>
     {% endfor %}
   </table></div>

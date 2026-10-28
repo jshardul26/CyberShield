@@ -9,13 +9,13 @@
 <section class="panel">
   <h2>Nodes</h2>
   {% if nodes %}
-  <div class="table-wrap"><table>
+  <div class="table-wrap"><table class="stack">
     <tr><th>Node</th><th>Status</th><th>Last seen (UTC)</th><th>Events</th></tr>
     {% for n in nodes %}
     <tr>
-      <td>{{ n.source }}</td>
-      <td><span class="badge node-{{ n.status|lower }}">{{ n.status }}</span></td>
-      <td>{{ n.last_seen }}</td><td>{{ n.event_count }}</td>
+      <td data-label="Node">{{ n.source }}</td>
+      <td data-label="Status"><span class="badge node-{{ n.status|lower }}">{{ n.status }}</span></td>
+      <td data-label="Last seen (UTC)">{{ n.last_seen }}</td><td data-label="Events">{{ n.event_count }}</td>
     </tr>
     {% endfor %}
   </table></div>
@@ -36,13 +36,13 @@
 <section class="panel">
   <h2>Recent events{% if 'logs' in pages %} <a class="more" href="{{ url_for('logs') }}">View all</a>{% endif %}</h2>
   {% if events %}
-  <div class="table-wrap"><table>
+  <div class="table-wrap"><table class="stack">
     <tr><th>ID</th><th>Time (UTC)</th><th>Source</th><th>Type</th><th>Port</th><th>Severity</th></tr>
     {% for e in events %}
     <tr>
-      <td>{{ e.id }}</td><td>{{ e.timestamp }}</td><td>{{ e.source }}</td><td>{{ e.event_type }}</td>
-      <td>{{ e.dest_port if e.dest_port is not none else '-' }}</td>
-      <td><span class="badge sev-{{ e.severity }}">{{ e.severity }}</span></td>
+      <td data-label="ID">{{ e.id }}</td><td data-label="Time (UTC)">{{ e.timestamp }}</td><td data-label="Source">{{ e.source }}</td><td data-label="Type">{{ e.event_type }}</td>
+      <td data-label="Port">{{ e.dest_port if e.dest_port is not none else '-' }}</td>
+      <td data-label="Severity"><span class="badge sev-{{ e.severity }}">{{ e.severity }}</span></td>
     </tr>
     {% endfor %}
   </table></div>

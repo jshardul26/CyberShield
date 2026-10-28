@@ -25,14 +25,14 @@
   </form>
 
   {% if events %}
-  <div class="table-wrap"><table>
+  <div class="table-wrap"><table class="stack">
     <tr><th>ID</th><th>Time (UTC)</th><th>Source</th><th>Type</th><th>Port</th><th>Severity</th><th>Message</th></tr>
     {% for e in events %}
     <tr>
-      <td>{{ e.id }}</td><td>{{ e.timestamp }}</td><td>{{ e.source }}</td><td>{{ e.event_type }}</td>
-      <td>{{ e.dest_port if e.dest_port is not none else '-' }}</td>
-      <td><span class="badge sev-{{ e.severity }}">{{ e.severity }}</span></td>
-      <td>{{ e.message }}</td>
+      <td data-label="ID">{{ e.id }}</td><td data-label="Time (UTC)">{{ e.timestamp }}</td><td data-label="Source">{{ e.source }}</td><td data-label="Type">{{ e.event_type }}</td>
+      <td data-label="Port">{{ e.dest_port if e.dest_port is not none else '-' }}</td>
+      <td data-label="Severity"><span class="badge sev-{{ e.severity }}">{{ e.severity }}</span></td>
+      <td class="wrap" data-label="Message">{{ e.message }}</td>
     </tr>
     {% endfor %}
   </table></div>
