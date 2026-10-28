@@ -130,6 +130,16 @@ def get_recent_events(source, seconds):
     )
 
 
+def has_recent_alert(incident_id, rule, seconds):
+    """True if this incident already got an alert for this rule in the last `seconds` seconds."""
+    rows = _fetch(
+        "SELECT 1 FROM alerts WHERE incident_id = ? AND rule = ? "
+        "AND timestamp >= datetime('now', ?) LIMIT 1",
+        (incident_id, rule, f"-{int(seconds)} seconds"),
+    )
+    return len(rows) > 0
+
+
 def find_active_incident(source, title):
     """Open/acknowledged incident for this source + title (decision D6), or None."""
     rows = _fetch(

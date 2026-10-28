@@ -38,6 +38,8 @@ db.add_alert(e2, inc, "port_scan", "4 ports in 10 s", "high")
 check("find_active_incident finds it", db.find_active_incident("node-2", "Port scan from node-2")["id"] == inc)
 check("alert joined with incident status", db.get_alerts()[0]["status"] == "open")
 check("incident alert_count", db.get_incidents()[0]["alert_count"] == 1)
+check("has_recent_alert true for same rule", db.has_recent_alert(inc, "port_scan", 10))
+check("has_recent_alert false for other rule", not db.has_recent_alert(inc, "traffic_spike", 10))
 
 # status changes
 check("acknowledge works", db.update_incident_status(inc, "acknowledged"))

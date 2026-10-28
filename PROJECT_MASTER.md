@@ -2,11 +2,11 @@
 
 > Single source of truth across Claude chats. Read this FIRST in every new chat. Never assume a milestone is done unless it is marked ✅ here AND the code confirms it.
 
-**Last updated:** 2026-10-28 (M4 complete)
+**Last updated:** 2026-10-28 (M5 complete)
 
-**Current milestone:** M4 done ✅ → M5 next
+**Current milestone:** M5 done ✅ → M6 next
 
-**Next step:** M5 — wire `detector.detect()` into `server.py` `process_event()`: after storing an event, load `database.get_recent_events(source, WINDOW_SECONDS)`, run the detector, create/reuse an incident (`find_active_incident` + `incident_title`) and add alerts. Also fix alert flooding (Section 16) and add `tests/test_integration.py` (scan mode → alert + incident rows).
+**Next step:** M6 — Flask base + Dashboard: write `app.py` (route `/`, reads via `database.get_counts()`, `get_events()`, `get_alerts()`), `templates/base.html`, `templates/dashboard.html`, `static/css/style.css` (dark navy theme). Empty DB must render without error. Test with Flask's test client in `tests/test_app.py`.
 
 ---
 
@@ -108,7 +108,7 @@ Values — severity: `info | low | medium | high`; incident status: `open | ackn
 | Port-scan-like | ≥ 4 distinct `dest_port` from same source in 10 s | high |
 | Traffic spike | ≥ 20 events (any type) from same source in 10 s | medium |
 
-Alert de-duplication: one open incident per (source, rule); further matches attach to it.
+Alert de-duplication (D10, implemented in M5): one active (open/acknowledged) incident per (source, rule); further matches attach to it; at most ONE alert per rule per incident per 10 s window.
 
 ## 8. Pages
 
@@ -149,7 +149,8 @@ CyberShield/
     ├── test_database.py    # added in M1 (plain-assert script)
     ├── test_detection.py
     ├── test_server.py      # added in M3 (plain-assert script)
-    └── test_client.py      # added in M4 (plain-assert script)
+    ├── test_client.py      # added in M4 (plain-assert script)
+    └── test_integration.py # added in M5 (plain-assert script)
 
 ```
 
@@ -177,7 +178,7 @@ CyberShield/
 | M2 | `detector.py` + `tests/test_detection.py` | Tests pass for each rule: below threshold → no alert, at threshold → alert | ✅ tested (16 tests, plain python; pytest not run) |
 | M3 | `server.py` + `tests/test_server.py` | JSON-line validation and SQLite storage; malformed and oversized input rejected; multiple clients handled (threads) | ✅ tested (6 tests pass via plain Python) |
 | M4 | `client.py` + `tests/test_client.py` | Modes `normal`, `repeat`, `scan`, `spike` send expected events | ✅ tested (6 tests pass via plain Python; end-to-end run with real server on port 9999 also checked) |
-| M5 | Server + detector integration | `scan` mode → alert + incident rows in DB | ❌ |
+| M5 | Server + detector integration | `scan` mode → alert + incident rows in DB | ✅ tested (8 tests in `tests/test_integration.py`; all 5 test files pass) |
 | M6 | Flask base + Dashboard | Cards show real counts; empty DB renders without error | ❌ |
 | M7 | `/network`, `/alerts`, `/logs` | Tables match DB; filters work | ❌ |
 | M8 | `/incidents` actions | Status change persists after refresh and app restart | ❌ |
@@ -256,7 +257,16 @@ Open http://127.0.0.1:5000
 - Rejects malformed JSON, invalid fields, and oversized lines without stopping the server.
 - Supports multiple events per connection and concurrent clients.
 - SQL-injection-style input is stored as plain text.
-- Detection/alert integration is not wired into the server; that remains M5.
+- (M3 note, now superseded) Detection was added in M5, see below.
+
+**M5 — detection wired into `server.py` (✅ 8 tests pass via `python tests/test_integration.py`: real client → TCP server → detector → SQLite)**
+- `process_event()` stores the event, loads `database.get_recent_events(source, WINDOW_SECONDS)`, runs `detector.detect()`, then per alert: reuse the active incident for (source, rule title) or create a new `open` incident, then add the alert (linked to the triggering event)
+- Alert flooding fixed: new `database.has_recent_alert(incident_id, rule, seconds)`; alert skipped if that incident already alerted for the rule within the window → `repeat` (6 events), `scan` (5), `spike` (25) each give exactly 1 alert + 1 incident
+- `normal` traffic and unrelated sources create no alerts; sources are independent
+- Acknowledged incident is reused (no new incident); resolved/contained incident → next match creates a NEW incident
+- Server prints `[ALERT] rule from source -> incident #N: description` to its console
+- `tests/test_database.py` gained 2 checks for `has_recent_alert` (now 24 checks)
+- Known limit: two threads handling the SAME source at exactly the same moment could both pass the de-dup check (not expected in the demo; single client per source)
 
 **M4 — `client.py` + `tests/test_client.py` (✅ 6 tests pass via `python tests/test_client.py`; also run end-to-end against a real `server.py` on port 9999, 2026-10-28)**
 - Usage: `python client.py <normal|repeat|scan|spike|all> [--source NAME]`; sends to 127.0.0.1:9999 only, one TCP connection per scenario, one JSON line per event
@@ -266,17 +276,21 @@ Open http://127.0.0.1:5000
 - `send_scenario(mode, source, host, port, delay)` is importable (tests use it with `delay=0`)
 ## 15. Planned / Unverified Features
 
-M5–M11 remain planned/unverified. Detection/alert integration is reserved for M5.
+M6–M11 remain planned/unverified (Flask app, templates, CSS are still empty files).
 
 ## 16. Known Issues
 
-- **Alert flooding (to solve in M5):** because rules use `>=`, every extra event past the threshold in the same window re-fires the rule (e.g. 25 spike events → several alerts). Plan: server skips adding an alert if the same rule already alerted on the active incident within the window (needs a small DB helper).
+- Alert flooding: ✅ fixed in M5 (see Section 14).
 
 - pytest run not verified yet (plain-python runner works).
 
 ## 17. Decision D9
 
 **D9 (added in M2):** port-scan rule counts only `port_probe` events, not every event with a port. Reason: avoids false positives from normal traffic.
+
+## 17a. Decision D10
+
+**D10 (added in M5):** alert de-duplication = one alert per (incident, rule) per `WINDOW_SECONDS`; incident reuse only while status is `open`/`acknowledged`.
 
 ## 17b. Conflicts Found Between Spec and Prior Decisions
 
@@ -291,3 +305,4 @@ No prior `PROJECT_MASTER.md` was supplied; this is the first version. Spec adopt
 | 2026-10-21 | M2 `detector.py` + `tests/test_detection.py` added; 16 tests pass; D9 and alert-flooding note recorded |
 | 2026-10-21 | M3 `server.py` + `tests/test_server.py` added; 6 tests pass; JSON-line validation and event storage verified; M4 next |
 | 2026-10-28 | M4 `client.py` + `tests/test_client.py` added; 6 tests pass; end-to-end with real server checked; blank lines that broke markdown tables repaired; M5 next |
+| 2026-10-28 | M5 detection wired into `server.py`; `database.has_recent_alert()` added; flood fix; `tests/test_integration.py` (8 tests) added; M6 next |

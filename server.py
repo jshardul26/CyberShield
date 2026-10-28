@@ -1,7 +1,7 @@
 """CyberShield TCP server (M3). Receives one JSON line per event and stores it in SQLite.
 
 Run:  python server.py
-Detection is NOT wired in yet (that is M5).
+After storing each event, the detector runs on that source's last WINDOW_SECONDS of events.
 """
 import json
 import socketserver
@@ -47,9 +47,22 @@ def parse_message(raw):
 
 
 def process_event(event):
-    """Store one validated event. Returns the new event id. (Detection is added in M5.)"""
-    return database.add_event(event["source"], event["event_type"], event["dest_port"],
-                              event["message"], detector.event_severity(event["event_type"]))
+    """Store one validated event, run the detector, record alerts. Returns the new event id."""
+    source = event["source"]
+    event_id = database.add_event(source, event["event_type"], event["dest_port"],
+                                  event["message"], detector.event_severity(event["event_type"]))
+
+    recent = database.get_recent_events(source, detector.WINDOW_SECONDS)
+    for alert in detector.detect(recent):
+        title = detector.incident_title(alert["rule"], source)
+        incident = database.find_active_incident(source, title)
+        incident_id = incident["id"] if incident else database.add_incident(title, source, alert["severity"])
+        # alert flooding fix: one alert per rule per incident per window
+        if database.has_recent_alert(incident_id, alert["rule"], detector.WINDOW_SECONDS):
+            continue
+        database.add_alert(event_id, incident_id, alert["rule"], alert["description"], alert["severity"])
+        print(f"[ALERT] {alert['rule']} from {source} -> incident #{incident_id}: {alert['description']}")
+    return event_id
 
 
 class Handler(socketserver.StreamRequestHandler):
