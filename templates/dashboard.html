@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block head_extra %}<meta http-equiv="refresh" content="5">{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<p class="muted">Refreshes every 5 seconds.</p>
+
+<section class="cards">
+  <div class="card"><span class="card-label">Total events</span><span class="card-value">{{ counts.events }}</span></div>
+  <div class="card"><span class="card-label">Detected alerts</span><span class="card-value">{{ counts.alerts }}</span></div>
+  <div class="card"><span class="card-label">Open incidents</span><span class="card-value{% if counts.open_incidents %} warn{% endif %}">{{ counts.open_incidents }}</span></div>
+  <div class="card"><span class="card-label">Network nodes</span><span class="card-value">{{ counts.nodes }}</span></div>
+</section>
+
+<section class="panel">
+  <h2>Latest alerts{% if 'alerts' in pages %} <a class="more" href="{{ url_for('alerts') }}">View all</a>{% endif %}</h2>
+  {% if alerts %}
+  <div class="table-wrap"><table>
+    <tr><th>ID</th><th>Time (UTC)</th><th>Source</th><th>Rule</th><th>Severity</th><th>Status</th></tr>
+    {% for a in alerts %}
+    <tr>
+      <td>{{ a.id }}</td><td>{{ a.timestamp }}</td><td>{{ a.source }}</td><td>{{ a.rule }}</td>
+      <td><span class="badge sev-{{ a.severity }}">{{ a.severity }}</span></td>
+      <td><span class="badge status-{{ a.status }}">{{ a.status }}</span></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="empty">No alerts yet. Run <code>python client.py scan</code> to trigger one.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Recent events{% if 'logs' in pages %} <a class="more" href="{{ url_for('logs') }}">View all</a>{% endif %}</h2>
+  {% if events %}
+  <div class="table-wrap"><table>
+    <tr><th>ID</th><th>Time (UTC)</th><th>Source</th><th>Type</th><th>Port</th><th>Severity</th></tr>
+    {% for e in events %}
+    <tr>
+      <td>{{ e.id }}</td><td>{{ e.timestamp }}</td><td>{{ e.source }}</td><td>{{ e.event_type }}</td>
+      <td>{{ e.dest_port if e.dest_port is not none else '-' }}</td>
+      <td><span class="badge sev-{{ e.severity }}">{{ e.severity }}</span></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="empty">No events yet. Start <code>python server.py</code>, then run <code>python client.py all</code>.</p>
+  {% endif %}
+</section>
+{% endblock %}

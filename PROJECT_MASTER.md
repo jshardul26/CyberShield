@@ -2,11 +2,11 @@
 
 > Single source of truth across Claude chats. Read this FIRST in every new chat. Never assume a milestone is done unless it is marked ✅ here AND the code confirms it.
 
-**Last updated:** 2026-10-28 (M5 complete)
+**Last updated:** 2026-10-28 (M6 complete)
 
-**Current milestone:** M5 done ✅ → M6 next
+**Current milestone:** M6 done ✅ → M7 next
 
-**Next step:** M6 — Flask base + Dashboard: write `app.py` (route `/`, reads via `database.get_counts()`, `get_events()`, `get_alerts()`), `templates/base.html`, `templates/dashboard.html`, `static/css/style.css` (dark navy theme). Empty DB must render without error. Test with Flask's test client in `tests/test_app.py`.
+**Next step:** M7 — add routes `/network`, `/alerts`, `/logs` to `app.py` with templates `network.html`, `alerts.html`, `logs.html` (extend `base.html`; nav links appear automatically once an endpoint exists). `/network`: `database.get_nodes()` + recent events + "Run simulation" POST button (D4: `subprocess` with fixed args, e.g. `client.py all`, no user input). `/alerts`: `get_alerts()` with link to `/incidents`. `/logs`: `get_events(limit, event_type, severity)` with GET filters validated against `detector.VALID_EVENT_TYPES` / `database.SEVERITIES`. Add tests to `tests/test_app.py`.
 
 ---
 
@@ -150,7 +150,8 @@ CyberShield/
     ├── test_detection.py
     ├── test_server.py      # added in M3 (plain-assert script)
     ├── test_client.py      # added in M4 (plain-assert script)
-    └── test_integration.py # added in M5 (plain-assert script)
+    ├── test_integration.py # added in M5 (plain-assert script)
+    └── test_app.py         # added in M6 (Flask test client, plain-assert script)
 
 ```
 
@@ -179,7 +180,7 @@ CyberShield/
 | M3 | `server.py` + `tests/test_server.py` | JSON-line validation and SQLite storage; malformed and oversized input rejected; multiple clients handled (threads) | ✅ tested (6 tests pass via plain Python) |
 | M4 | `client.py` + `tests/test_client.py` | Modes `normal`, `repeat`, `scan`, `spike` send expected events | ✅ tested (6 tests pass via plain Python; end-to-end run with real server on port 9999 also checked) |
 | M5 | Server + detector integration | `scan` mode → alert + incident rows in DB | ✅ tested (8 tests in `tests/test_integration.py`; all 5 test files pass) |
-| M6 | Flask base + Dashboard | Cards show real counts; empty DB renders without error | ❌ |
+| M6 | Flask base + Dashboard | Cards show real counts; empty DB renders without error | ✅ tested (5 tests in `tests/test_app.py`; live run with server + client + app checked) |
 | M7 | `/network`, `/alerts`, `/logs` | Tables match DB; filters work | ❌ |
 | M8 | `/incidents` actions | Status change persists after refresh and app restart | ❌ |
 | M9 | `/about` + CSS polish | Server state shown; responsive layout | ❌ |
@@ -274,9 +275,16 @@ Open http://127.0.0.1:5000
 - Verified with the detector: normal → no alert; repeat → `repeated_connections`; scan → `port_scan`; spike → `traffic_spike` (each exactly one rule)
 - Server not running → friendly message and exit code 1 (no traceback)
 - `send_scenario(mode, source, host, port, delay)` is importable (tests use it with `delay=0`)
+**M6 — Flask base + Dashboard (✅ 5 tests pass via `python tests/test_app.py`; live run: `python server.py` + `python app.py` + `python client.py all`, then `GET /` → HTTP 200 with 41 events, 3 alerts, 3 open incidents, 4 nodes)**
+- `app.py`: Flask app on 127.0.0.1:5000 (`debug=False`); `python app.py` calls `database.init_db()` first; route `/` (`dashboard`); context processor builds the nav from existing endpoints
+- `templates/base.html` (layout, nav, footer, `head_extra` block), `templates/dashboard.html` (4 summary cards, latest 5 alerts, latest 10 events, severity/status badges, friendly empty states), `static/css/style.css` (dark navy theme, responsive grid, tables scroll inside a wrapper)
+- Jinja auto-escaping verified: a source named `<script>alert(1)</script>` is rendered as text
+- `requirements.txt` now contains `Flask>=3.0` (tested with Flask 3.1.3)
+- Dashboard reads only real DB data; empty DB renders without error
+
 ## 15. Planned / Unverified Features
 
-M6–M11 remain planned/unverified (Flask app, templates, CSS are still empty files).
+M7–M11 remain planned/unverified. Still empty placeholder files: `templates/network.html`, `alerts.html`, `incidents.html`, `logs.html`, `about.html`. The CSS look has NOT been checked in a real browser by Claude (no browser in its sandbox): please open http://127.0.0.1:5000 and report layout problems.
 
 ## 16. Known Issues
 
@@ -292,6 +300,10 @@ M6–M11 remain planned/unverified (Flask app, templates, CSS are still empty fi
 
 **D10 (added in M5):** alert de-duplication = one alert per (incident, rule) per `WINDOW_SECONDS`; incident reuse only while status is `open`/`acknowledged`.
 
+## 17a-2. Decision D11
+
+**D11 (added in M6):** the dashboard auto-refreshes every 5 s using a plain `<meta http-equiv="refresh">` tag (no JavaScript, still "normal page refresh"). Other pages do not auto-refresh (the incidents page has action buttons). Nav links are shown only for pages whose Flask endpoint exists (`NAV` list in `app.py`).
+
 ## 17b. Conflicts Found Between Spec and Prior Decisions
 
 No prior `PROJECT_MASTER.md` was supplied; this is the first version. Spec adopted as-is, with proposed choices in Section 10.
@@ -306,3 +318,4 @@ No prior `PROJECT_MASTER.md` was supplied; this is the first version. Spec adopt
 | 2026-10-21 | M3 `server.py` + `tests/test_server.py` added; 6 tests pass; JSON-line validation and event storage verified; M4 next |
 | 2026-10-28 | M4 `client.py` + `tests/test_client.py` added; 6 tests pass; end-to-end with real server checked; blank lines that broke markdown tables repaired; M5 next |
 | 2026-10-28 | M5 detection wired into `server.py`; `database.has_recent_alert()` added; flood fix; `tests/test_integration.py` (8 tests) added; M6 next |
+| 2026-10-28 | M6 `app.py`, `base.html`, `dashboard.html`, `style.css`, `requirements.txt`, `tests/test_app.py` added; 5 tests pass; D11 recorded; M7 next |
